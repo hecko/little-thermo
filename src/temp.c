@@ -15,6 +15,12 @@ unsigned char version;
 
 int main(int argc, char **argv)
 {
+
+	if (argc < 2) {
+		printf("Please run the program with username: %s <username>\n",argv[0]);
+		return -1; 
+	}
+
 	littleWire *myLittleWire = NULL;
 	unsigned int adcValue;
 
@@ -39,17 +45,19 @@ int main(int argc, char **argv)
 		adcValue=analogRead(myLittleWire, ADC_TEMP_SENS);
 		if (curl_handle) {
 			//prepare post data
-			asprintf(&curl_data, "%s%f", "key=temp&val=", (float)((adcValue-273.0)*0.92859));
+			asprintf(&curl_data, "%s%s%s%f", "user=", argv[1], "&key=temp&val=", (float)((adcValue-273.0)*0.92859));
 			//set URL and POST data
 			curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, curl_data);
 			curl_easy_setopt(curl_handle, CURLOPT_URL, "http://linode.blava.net/meter/");
 			//set no progress meter
 			curl_easy_setopt(curl_handle, CURLOPT_NOPROGRESS, 1L);
 			res = curl_easy_perform(curl_handle);
-			if(res != CURLE_OK)
+			if(res != CURLE_OK) {
 				fprintf(stderr, "curl_easy_perform() failed: %s\n",curl_easy_strerror(res));
+			}
 		}
-		printf("Value: %d Temp: %f\n", adcValue,(float)((adcValue-273.0)*0.92859));
+		printf("%s\n", curl_data);
+		free(curl_data);
 		delay(1000);
 	}
 
