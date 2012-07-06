@@ -37,7 +37,7 @@ $(LWLIBS):
 
 $(EXAMPLES): $(addsuffix .o, $(LWLIBS))
 	@echo Building example: $@...
-	$(CC) $(CFLAGS) -D_GNU_SOURCE=1 -o $@$(EXE_SUFFIX) src/$@.c $^ $(LIBS) $(LDLIBS)
+	$(CC) $(CFLAGS) -D_GNU_SOURCE=1 -pthread -Wno-unused-result -o $@$(EXE_SUFFIX) src/$@.c $^ $(LIBS) $(LDLIBS)
 
 clean:
 	rm -f $(EXAMPLES)$(EXE_SUFFIX) *.o *.exe
