@@ -18,9 +18,9 @@
 #include <syslog.h>
 #include <signal.h>
 #include <pthread.h>
+#include <string.h>
 
 unsigned char version;
-
 
 void signal_handler(int sig) {
 	switch(sig) {
@@ -77,9 +77,57 @@ void* Sender(void *arg) {
                 syslog(LOG_INFO, "%s\n", curl_data);
                 free(curl_data);
 
-                delay(5000);
+                delay(60000);
         }
 	curl_easy_cleanup(curl_handle);
+}
+
+void* Server(void *arg) {
+	#define LOCAL_SERVER_PORT 1500
+	#define MAX_MSG 1 
+
+	syslog(LOG_NOTICE, "Starting server code...");
+
+	int sd, rc, n, cliLen;
+	struct sockaddr_in cliAddr, servAddr;
+	char msg[MAX_MSG];
+	sd=socket(AF_INET, SOCK_DGRAM, 0);
+	if(sd<0) {
+		syslog(LOG_NOTICE, "cannot open socket \n");
+		exit(1);
+	}
+	servAddr.sin_family = AF_INET;
+	servAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	servAddr.sin_port = htons(LOCAL_SERVER_PORT);
+	rc = bind (sd, (struct sockaddr *) &servAddr,sizeof(servAddr));
+
+	if(rc<0) {
+		syslog(LOG_NOTICE, "cannot bind port number %d \n", LOCAL_SERVER_PORT);
+		exit(1);
+	}
+	syslog(LOG_NOTICE, "waiting for data on port UDP %u\n", LOCAL_SERVER_PORT);
+
+	/* server infinite loop */
+	while(1) {
+		/* init buffer */
+		memset(msg,0x0,MAX_MSG);
+		/* receive message */
+		cliLen = sizeof(cliAddr);
+		n = recvfrom(sd, msg, MAX_MSG, 0, (struct sockaddr *) &cliAddr, &cliLen);
+		if(n<0) {
+			syslog(LOG_NOTICE, "cannot receive data \n");
+			continue;
+		}
+		/* print received message */
+		//syslog(LOG_NOTICE, "from %u UDP%u : %s \n", inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port),msg);
+
+		sendto(sd, "anoo", sizeof("anoo"), 0, (struct sockaddr *) &cliAddr, sizeof(cliAddr));
+
+	}/* end of server infinite loop */
+
+	return 0;
+
+	syslog(LOG_NOTICE, "Server code ending...");
 }
 
 int main(int argc, char **argv)
@@ -120,38 +168,16 @@ int main(int argc, char **argv)
 			exit(EXIT_FAILURE);
 	        }
 		syslog(LOG_NOTICE, "...now a full-featured child :)");
-		pthread_t sender_child;
+		pthread_t sender_child, server_child;
 		pthread_create(&sender_child, NULL, Sender, NULL);
+		pthread_create(&server_child, NULL, Server, NULL);
 		pthread_join(sender_child, NULL);
 		closelog();
 		pthread_exit(NULL);
+		// here the program ends
 	} else {
 		syslog(LOG_NOTICE, "Parent: Fork success.");
 	}
-
-	//syslog(LOG_NOTICE, "Starting server code...");
-
-	//server code here
-	/*
-	int sockfd, newsockfd, portno;
-	socklen_t clilen;
-	struct sockaddr_in serv_addr, cli_addr;
-	int n;
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	bzero((char *) &serv_addr, sizeof(serv_addr));
-	portno = atoi(1111);
-	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_addr.s_addr = INADDR_ANY;
-	serv_addr.sin_port = htons(portno);
-	if (bind(sockfd, (struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0)
-		syslog(LOG_ERR,"ERROR on server binding");
-	listen(sockfd,5);
-	clilen = sizeof(cli_addr);
-	newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
-	if (newsockfd < 0) 
-		error("ERROR on accept");
-	*/
-	//server code ends
 
 	syslog(LOG_NOTICE, "Parent will now exit.");
 }
