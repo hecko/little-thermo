@@ -19,6 +19,11 @@
 #include <signal.h>
 #include <pthread.h>
 #include <string.h>
+#include <netdb.h>
+#include <sys/un.h>
+
+#define handle_error(msg) \
+    do { perror(msg); exit(EXIT_FAILURE); } while (0)
 
 unsigned char version;
 
@@ -36,9 +41,7 @@ void signal_handler(int sig) {
 	}
 }
 
-//sender part which regularly sends data to the cloud 
-void* Sender(void *arg) {
-
+int ReadTemp(void) {
 	littleWire *myLittleWire = NULL;
         unsigned int adcValue;
 
@@ -54,13 +57,21 @@ void* Sender(void *arg) {
 
         pinMode(myLittleWire,PIN2,INPUT);
 
+	adcValue=analogRead(myLittleWire, ADC_TEMP_SENS);
+	return adcValue;
+}
+
+//sender part which regularly sends data to the cloud 
+void* Sender(void *arg) {
+
         CURL *curl_handle;
         CURLcode res;
         curl_handle = curl_easy_init();
         char *curl_data;
 
         while(1){
-                adcValue=analogRead(myLittleWire, ADC_TEMP_SENS);
+		unsigned int adcValue;
+		adcValue = ReadTemp();
                 if (curl_handle) {
                         //prepare post data
                         asprintf(&curl_data, "%s%f", "user=maco&key=temp&val=", (float)((0.888*adcValue)-235.8));
@@ -75,57 +86,67 @@ void* Sender(void *arg) {
                         }
                 }
                 syslog(LOG_INFO, "%s\n", curl_data);
-                free(curl_data);
+                //free(curl_data);
 
                 delay(60000);
         }
 	curl_easy_cleanup(curl_handle);
 }
 
+void *servlet(void *arg)                    /* servlet thread */
+{	FILE *fp = (FILE*)arg;            /* get & convert the data */
+	int adcValue;
+
+	adcValue = ReadTemp();
+	fputs("nieco", fp);                             /* echo it back */
+	fclose(fp);                   /* close the client's channel */
+	return 0;                           /* terminate the thread */
+}
+
 void* Server(void *arg) {
-	#define LOCAL_SERVER_PORT 1500
-	#define MAX_MSG 1 
+	#define LOCAL_SERVER_PORT 15000
+
+	unsigned int adcValue;
 
 	syslog(LOG_NOTICE, "Starting server code...");
 
-	int sd, rc, n, cliLen;
-	struct sockaddr_in cliAddr, servAddr;
-	char msg[MAX_MSG];
-	sd=socket(AF_INET, SOCK_DGRAM, 0);
+	int sd, port;
+	struct addrinfo addr;
+	struct addrinfo *result, *rp;
+
+	memset(&addr, 0, sizeof(struct addrinfo));
+        addr.ai_family = AF_UNSPEC;
+        addr.ai_addr = NULL;
+	addr.ai_flags = AI_PASSIVE;
+	addr.ai_protocol = 0;
+	addr.ai_socktype = SOCK_DGRAM;
+
+	sd=socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
 	if(sd<0) {
 		syslog(LOG_NOTICE, "cannot open socket \n");
 		exit(1);
 	}
-	servAddr.sin_family = AF_INET;
-	servAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	servAddr.sin_port = htons(LOCAL_SERVER_PORT);
-	rc = bind (sd, (struct sockaddr *) &servAddr,sizeof(servAddr));
+	
+	if ( bind(sd, rp->ai_addr, rp->ai_addrlen) != 0 )
+		syslog(LOG_NOTICE, "problem with server bind");
 
-	if(rc<0) {
-		syslog(LOG_NOTICE, "cannot bind port number %d \n", LOCAL_SERVER_PORT);
+	if ( listen(sd, 10) != 0 ) {
+		perror("listen");
+		syslog(LOG_NOTICE, "problem with server listener");	
 		exit(1);
-	}
-	syslog(LOG_NOTICE, "waiting for data on port UDP %u\n", LOCAL_SERVER_PORT);
+	} else {
+		int sd;
+		pthread_t child;
+		FILE *fp;
 
-	/* server infinite loop */
-	while(1) {
-		/* init buffer */
-		memset(msg,0x0,MAX_MSG);
-		/* receive message */
-		cliLen = sizeof(cliAddr);
-		n = recvfrom(sd, msg, MAX_MSG, 0, (struct sockaddr *) &cliAddr, &cliLen);
-		if(n<0) {
-			syslog(LOG_NOTICE, "cannot receive data \n");
-			continue;
+		while (1)                         /* process all incoming clients */
+		{
+			sd = accept(sd, 0, 0);     /* accept connection */
+			fp = fdopen(sd, "r+");           /* convert into FILE* */
+			pthread_create(&child, 0, servlet, fp);       /* start thread */
+			pthread_detach(child);                      /* don't track it */
 		}
-		/* print received message */
-		//syslog(LOG_NOTICE, "from %u UDP%u : %s \n", inet_ntoa(cliAddr.sin_addr), ntohs(cliAddr.sin_port),msg);
-
-		sendto(sd, "anoo", sizeof("anoo"), 0, (struct sockaddr *) &cliAddr, sizeof(cliAddr));
-
-	}/* end of server infinite loop */
-
-	return 0;
+	}
 
 	syslog(LOG_NOTICE, "Server code ending...");
 }
@@ -144,9 +165,9 @@ int main(int argc, char **argv)
 
 	signal(SIGTERM,signal_handler); /* catch kill signal */
 	signal(SIGINT,signal_handler); /* catch kill signal */
-	close(STDIN_FILENO);
-	close(STDOUT_FILENO);
-	close(STDERR_FILENO);
+	//close(STDIN_FILENO);
+	//close(STDOUT_FILENO);
+	//close(STDERR_FILENO);
 
 	pid_t pid, sid;
 	syslog(LOG_ERR, "Forking and putting into background...");
