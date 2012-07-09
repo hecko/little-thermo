@@ -22,8 +22,13 @@
 #include <netdb.h>
 #include <sys/un.h>
 
+#define PROG_NAME "temp_server"
 #define SEND_INTERVAL 5000
 #define LOCAL_SERVER_PORT "15000" /* port number or service name as string */
+
+//uncomment the following to disable querying a hardware sensor,
+//instead return a constant temperature
+//#define DUMMY_SENSOR 1
 
 unsigned char version;
 littleWire *myLittleWire = NULL;
@@ -45,6 +50,9 @@ void signal_handler(int sig)
 
 void InitTemp(void)
 {
+#ifdef DUMMY_SENSOR
+	return;
+#endif
 	myLittleWire = littleWire_connect();
 
 	if (myLittleWire == NULL) {
@@ -63,6 +71,9 @@ void InitTemp(void)
 float ReadTemp(void)
 {
 	unsigned int adcValue;
+#ifdef DUMMY_SENSOR
+	return 3.1415926535897932384626433832;
+#endif
 	adcValue = analogRead(myLittleWire, ADC_TEMP_SENS);
 	if (adcValue <= 230 || adcValue >= 370) { /* which corresponds to -40 to 85 C */
 		syslog(LOG_ERR,
@@ -175,16 +186,16 @@ void *Server(void *arg)
 
 int main(int argc, char **argv)
 {
-	openlog(argv[0], LOG_NOWAIT | LOG_PID, LOG_USER);
+	openlog(PROG_NAME, LOG_NOWAIT | LOG_PID, LOG_USER);
 	//disable stdout buffering
 	setbuf(stdout, NULL);
 	syslog(LOG_NOTICE,
-		   "----------Starting temperatire monitoring server----------");
+		   "Starting temperature monitoring server");
 
 	if (argc != 2) {
 		syslog(LOG_ERR, "Please run the program with username: %s <username>\n",
 			   argv[0]);
-		return -1;
+		exit(1);
 	}
 	conf_user = argv[1];
 	InitTemp();
