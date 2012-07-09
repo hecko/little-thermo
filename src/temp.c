@@ -102,7 +102,7 @@ void *servlet(void *arg)                    /* servlet thread */
 	float temp_c;
 
 	temp_c = ReadTemp();
-	fprintf(fp, "%f\n", temp_c);                             /* echo it back */
+	fprintf(fp, "%f", temp_c);                             /* echo it back */
 	fclose(fp);                   /* close the client's channel */
 	return 0;                           /* terminate the thread */
 }
