@@ -32,7 +32,6 @@ char *conf_user;
 void signal_handler(int sig)
 {
 	switch (sig) {
-
 	case SIGTERM:
 		syslog(LOG_NOTICE, "received a SIGTERM signal");
 		exit(0);
@@ -50,7 +49,7 @@ void InitTemp(void)
 
 	if (myLittleWire == NULL) {
 		syslog(LOG_ERR,
-			   "Little Wire could not be found! Make sure you are running this as root!\n");
+			   "Little Wire could not be found! Is it plugged in and are you running this as root?\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -65,6 +64,12 @@ float ReadTemp(void)
 {
 	unsigned int adcValue;
 	adcValue = analogRead(myLittleWire, ADC_TEMP_SENS);
+	if (adcValue <= 230 || adcValue >= 370) { /* which corresponds to -40 to 85 C */
+		syslog(LOG_ERR,
+				"Value returned from Little Wire (%u) is not within acceptable range, exiting.\n",
+				adcValue);
+		exit(1);
+	}
 	return (float)((0.888 * adcValue) - 235.8);
 }
 
