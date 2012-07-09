@@ -22,8 +22,13 @@
 #include <netdb.h>
 #include <sys/un.h>
 
+#define PROG_NAME "temp_server"
 #define SEND_INTERVAL 5000
-#define LOCAL_SERVER_PORT 15000
+#define LOCAL_SERVER_PORT "15000" /* port number or service name as string */
+
+//uncomment the following to disable querying a hardware sensor,
+//instead return a constant temperature
+//#define DUMMY_SENSOR 1
 
 unsigned char version;
 littleWire *myLittleWire = NULL;
@@ -32,7 +37,6 @@ char *conf_user;
 void signal_handler(int sig)
 {
 	switch (sig) {
-
 	case SIGTERM:
 		syslog(LOG_NOTICE, "received a SIGTERM signal");
 		exit(0);
@@ -46,11 +50,14 @@ void signal_handler(int sig)
 
 void InitTemp(void)
 {
+#ifdef DUMMY_SENSOR
+	return;
+#endif
 	myLittleWire = littleWire_connect();
 
 	if (myLittleWire == NULL) {
 		syslog(LOG_ERR,
-			   "Little Wire could not be found! Make sure you are running this as root!\n");
+			   "Little Wire could not be found! Is it plugged in and are you running this as root?\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -64,7 +71,16 @@ void InitTemp(void)
 float ReadTemp(void)
 {
 	unsigned int adcValue;
+#ifdef DUMMY_SENSOR
+	return 3.1415926535897932384626433832;
+#endif
 	adcValue = analogRead(myLittleWire, ADC_TEMP_SENS);
+	if (adcValue <= 230 || adcValue >= 370) { /* which corresponds to -40 to 85 C */
+		syslog(LOG_ERR,
+				"Value returned from Little Wire (%u) is not within acceptable range, exiting.\n",
+				adcValue);
+		exit(1);
+	}
 	return (float)((0.888 * adcValue) - 235.8);
 }
 
@@ -115,30 +131,38 @@ void *servlet(void *arg)
 
 void *Server(void *arg)
 {
-	int sd, port;
-	struct sockaddr_in addr;
+	int sd, ret;
+	struct addrinfo req, *ans;
 	int optval;
 
 	syslog(LOG_NOTICE, "Starting server code...");
 
-	memset(&addr, 0, sizeof(struct sockaddr_in));
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(LOCAL_SERVER_PORT);
+	bzero(&req, sizeof(req));
+	req.ai_family = AF_UNSPEC;
+	req.ai_flags = AI_PASSIVE | AI_NUMERICSERV;
+	req.ai_socktype = SOCK_STREAM;
+	req.ai_protocol = 0;
 
-	sd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sd < 0) {
-		syslog(LOG_NOTICE, "cannot open socket \n");
+	if ((ret = getaddrinfo(NULL, LOCAL_SERVER_PORT, &req, &ans)) != 0) {
+		syslog(LOG_ERR, "getaddrinfo failed code %d\n", ret);
+		exit(1);
+	}
+
+	if ((sd = socket(ans->ai_family, ans->ai_socktype, ans->ai_protocol)) < 0) {
+		syslog(LOG_ERR, "cannot create socket \n");
 		exit(1);
 	}
 	optval = 1;
-	setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);
+	setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
 
-	if (bind(sd, (struct sockaddr *)&addr, sizeof(addr)) != 0)
-		syslog(LOG_NOTICE, "problem with server bind");
+	if (bind(sd, ans->ai_addr, ans->ai_addrlen) != 0) {
+		syslog(LOG_ERR, "problem with server bind");
+		exit(1);
+	}
 
 	if (listen(sd, 10) != 0) {
 		perror("listen");
-		syslog(LOG_NOTICE, "problem with server listener");
+		syslog(LOG_ERR, "problem with server listener");
 		exit(1);
 	} else {
 		int as;
@@ -149,7 +173,7 @@ void *Server(void *arg)
 			/* accept connection */
 			if ((as = accept(sd, 0, 0)) == -1) {
 				perror("accept");
-				syslog(LOG_NOTICE, "problem with socket accept");
+				syslog(LOG_ERR, "problem with socket accept");
 				exit(1);
 			}
 			fp = fdopen(as, "r+");	/* convert into FILE* */
@@ -162,16 +186,16 @@ void *Server(void *arg)
 
 int main(int argc, char **argv)
 {
-	openlog(argv[0], LOG_NOWAIT | LOG_PID, LOG_USER);
+	openlog(PROG_NAME, LOG_NOWAIT | LOG_PID, LOG_USER);
 	//disable stdout buffering
 	setbuf(stdout, NULL);
 	syslog(LOG_NOTICE,
-		   "----------Starting temperatire monitoring server----------");
+		   "Starting temperature monitoring server");
 
 	if (argc != 2) {
 		syslog(LOG_ERR, "Please run the program with username: %s <username>\n",
 			   argv[0]);
-		return -1;
+		exit(1);
 	}
 	conf_user = argv[1];
 	InitTemp();
@@ -215,3 +239,4 @@ int main(int argc, char **argv)
 
 	syslog(LOG_NOTICE, "Parent will now exit.");
 }
+// vim: noet:sw=4:ts=4:sts=0
