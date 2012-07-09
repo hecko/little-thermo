@@ -23,7 +23,7 @@
 #include <sys/un.h>
 
 #define SEND_INTERVAL 5000
-#define LOCAL_SERVER_PORT 15000
+#define LOCAL_SERVER_PORT "15000" /* port number or service name as string */
 
 unsigned char version;
 littleWire *myLittleWire = NULL;
@@ -120,30 +120,38 @@ void *servlet(void *arg)
 
 void *Server(void *arg)
 {
-	int sd, port;
-	struct sockaddr_in addr;
+	int sd, ret;
+	struct addrinfo req, *ans;
 	int optval;
 
 	syslog(LOG_NOTICE, "Starting server code...");
 
-	memset(&addr, 0, sizeof(struct sockaddr_in));
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(LOCAL_SERVER_PORT);
+	bzero(&req, sizeof(req));
+	req.ai_family = AF_UNSPEC;
+	req.ai_flags = AI_PASSIVE | AI_NUMERICSERV;
+	req.ai_socktype = SOCK_STREAM;
+	req.ai_protocol = 0;
 
-	sd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sd < 0) {
-		syslog(LOG_NOTICE, "cannot open socket \n");
+	if ((ret = getaddrinfo(NULL, LOCAL_SERVER_PORT, &req, &ans)) != 0) {
+		syslog(LOG_ERR, "getaddrinfo failed code %d\n", ret);
+		exit(1);
+	}
+
+	if ((sd = socket(ans->ai_family, ans->ai_socktype, ans->ai_protocol)) < 0) {
+		syslog(LOG_ERR, "cannot create socket \n");
 		exit(1);
 	}
 	optval = 1;
-	setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);
+	setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
 
-	if (bind(sd, (struct sockaddr *)&addr, sizeof(addr)) != 0)
-		syslog(LOG_NOTICE, "problem with server bind");
+	if (bind(sd, ans->ai_addr, ans->ai_addrlen) != 0) {
+		syslog(LOG_ERR, "problem with server bind");
+		exit(1);
+	}
 
 	if (listen(sd, 10) != 0) {
 		perror("listen");
-		syslog(LOG_NOTICE, "problem with server listener");
+		syslog(LOG_ERR, "problem with server listener");
 		exit(1);
 	} else {
 		int as;
@@ -154,7 +162,7 @@ void *Server(void *arg)
 			/* accept connection */
 			if ((as = accept(sd, 0, 0)) == -1) {
 				perror("accept");
-				syslog(LOG_NOTICE, "problem with socket accept");
+				syslog(LOG_ERR, "problem with socket accept");
 				exit(1);
 			}
 			fp = fdopen(as, "r+");	/* convert into FILE* */
