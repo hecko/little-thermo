@@ -1,5 +1,6 @@
 /* tcpclient.c */
 
+#include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
@@ -10,30 +11,57 @@
 #include <unistd.h>
 #include <errno.h>
 
+#define DEBUG 1
+
 int main()
 {
 
-	int sock, bytes_recieved;
-	char send_data[1024], recv_data[1024];
-	struct hostent *host;
+	int sock, bytes_recieved, ret;
+	char send_data[1024], recv_data[1024], straddr[INET6_ADDRSTRLEN];
+	struct addrinfo req, *ans, *ai;
 	struct sockaddr_in server_addr;
+	void *inaddr;
 
-	host = gethostbyname("127.0.0.1");
+	bzero(&req, sizeof(req));
+	req.ai_family = AF_UNSPEC;
+	req.ai_socktype = SOCK_STREAM;
 
-	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-		perror("Socket");
-		exit(1);
+	if ((ret = getaddrinfo("localhost", "15000", &req, &ans)) != 0) {
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(ret));
+		exit(EXIT_FAILURE);
 	}
+	ai = ans;
+	while (ai) { /* try all found addresses */
+#ifdef DEBUG
+		if (ai->ai_family == AF_INET) {
+			inaddr = &(((struct sockaddr_in *)ai->ai_addr)->sin_addr);
+		} else if (ai->ai_family == AF_INET6) {
+			inaddr = &(((struct sockaddr_in6 *)ai->ai_addr)->sin6_addr);
+		} else {
+			inaddr = NULL;
+		}
+		//fuh, is there a simpler way to do this?
+		if (inet_ntop(ai->ai_family, inaddr, straddr, INET6_ADDRSTRLEN) == NULL) {
+			perror("inet_ntop");
+			exit(EXIT_FAILURE);
+		}
+		fprintf(stderr, "Trying %s\n", straddr );
+#endif
 
-	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = htons(15000);
-	server_addr.sin_addr = *((struct in_addr *)host->h_addr);
-	bzero(&(server_addr.sin_zero), 8);
-
-	if (connect(sock, (struct sockaddr *)&server_addr,
-				sizeof(struct sockaddr)) == -1) {
-		perror("Connect");
-		exit(1);
+		if ((sock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol)) == -1) {
+			perror("Socket");
+			ai = ans->ai_next;
+			continue;
+		}
+		if (connect(sock, ai->ai_addr, sizeof(struct sockaddr)) == -1) {
+			perror("Connect");
+			ai = ans->ai_next;
+			continue;
+		}
+	}
+	if (!ai) {
+		fprintf(stderr, "Could not connect to host.\n");
+		exit(EXIT_FAILURE);
 	}
 
 	while (1) {
