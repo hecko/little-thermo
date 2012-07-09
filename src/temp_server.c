@@ -215,3 +215,4 @@ int main(int argc, char **argv)
 
 	syslog(LOG_NOTICE, "Parent will now exit.");
 }
+// vim: noet:sw=4:ts=4:sts=0
