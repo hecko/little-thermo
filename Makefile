@@ -22,7 +22,7 @@ INCLUDE = library
 CFLAGS  = $(USBFLAGS) $(LIBS) -I$(INCLUDE) -O -g $(OSFLAG)
 
 LWLIBS = opendevice littleWire littleWire_util littleWire_servo
-EXAMPLES = temp 
+EXAMPLES = temp temp_client
 LDLIBS = -L/usr/lib/x86_64-linux-gnu -lcurl
 
 .PHONY:	clean library
