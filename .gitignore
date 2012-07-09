@@ -6,3 +6,5 @@
 *.exe
 *.o
 *.so
+temp_server
+temp_client
