@@ -24,8 +24,11 @@
 
 #define handle_error(msg) \
     do { perror(msg); exit(EXIT_FAILURE); } while (0)
+#define SEND_INTERVAL 5000
 
 unsigned char version;
+littleWire *myLittleWire = NULL;
+char *conf_user;
 
 void signal_handler(int sig) {
 	switch(sig) {
@@ -41,9 +44,7 @@ void signal_handler(int sig) {
 	}
 }
 
-int ReadTemp(void) {
-	littleWire *myLittleWire = NULL;
-        unsigned int adcValue;
+void InitTemp(void) {
 
         myLittleWire = littleWire_connect();
 
@@ -56,9 +57,12 @@ int ReadTemp(void) {
         syslog(LOG_ERR, "Little Wire firmware version: %d.%d\n",((version & 0xF0)>>4),(version&0x0F));
 
         pinMode(myLittleWire,PIN2,INPUT);
+}
 
+float ReadTemp(void) {
+    unsigned int adcValue;
 	adcValue=analogRead(myLittleWire, ADC_TEMP_SENS);
-	return adcValue;
+	return (float)((0.888*adcValue)-235.8);
 }
 
 //sender part which regularly sends data to the cloud 
@@ -70,11 +74,11 @@ void* Sender(void *arg) {
         char *curl_data;
 
         while(1){
-		unsigned int adcValue;
-		adcValue = ReadTemp();
+		float temp_c;
+		temp_c = ReadTemp();
                 if (curl_handle) {
                         //prepare post data
-                        asprintf(&curl_data, "%s%f", "user=maco&key=temp&val=", (float)((0.888*adcValue)-235.8));
+                        asprintf(&curl_data, "user=%s&key=temp&val=%f", conf_user, temp_c);
                         //set URL and POST data
                         curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, curl_data);
                         curl_easy_setopt(curl_handle, CURLOPT_URL, "http://linode.blava.net/meter/");
@@ -88,17 +92,17 @@ void* Sender(void *arg) {
                 syslog(LOG_INFO, "%s\n", curl_data);
                 //free(curl_data);
 
-                delay(60000);
+                delay(SEND_INTERVAL);
         }
 	curl_easy_cleanup(curl_handle);
 }
 
 void *servlet(void *arg)                    /* servlet thread */
 {	FILE *fp = (FILE*)arg;            /* get & convert the data */
-	int adcValue;
+	float temp_c;
 
-	adcValue = ReadTemp();
-	fputs("nieco", fp);                             /* echo it back */
+	temp_c = ReadTemp();
+	fprintf(fp, "%f\n", temp_c);                             /* echo it back */
 	fclose(fp);                   /* close the client's channel */
 	return 0;                           /* terminate the thread */
 }
@@ -106,28 +110,25 @@ void *servlet(void *arg)                    /* servlet thread */
 void* Server(void *arg) {
 	#define LOCAL_SERVER_PORT 15000
 
-	unsigned int adcValue;
-
 	syslog(LOG_NOTICE, "Starting server code...");
 
 	int sd, port;
-	struct addrinfo addr;
-	struct addrinfo *result, *rp;
+	struct sockaddr_in addr;
+    int optval;
 
-	memset(&addr, 0, sizeof(struct addrinfo));
-        addr.ai_family = AF_UNSPEC;
-        addr.ai_addr = NULL;
-	addr.ai_flags = AI_PASSIVE;
-	addr.ai_protocol = 0;
-	addr.ai_socktype = SOCK_DGRAM;
+	memset(&addr, 0, sizeof(struct sockaddr_in));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(LOCAL_SERVER_PORT);
 
-	sd=socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+	sd=socket(AF_INET, SOCK_STREAM, 0);
 	if(sd<0) {
 		syslog(LOG_NOTICE, "cannot open socket \n");
 		exit(1);
 	}
-	
-	if ( bind(sd, rp->ai_addr, rp->ai_addrlen) != 0 )
+	optval = 1;
+    setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval);
+
+	if ( bind(sd, (struct sockaddr*)&addr, sizeof(addr) ) != 0 )
 		syslog(LOG_NOTICE, "problem with server bind");
 
 	if ( listen(sd, 10) != 0 ) {
@@ -135,14 +136,19 @@ void* Server(void *arg) {
 		syslog(LOG_NOTICE, "problem with server listener");	
 		exit(1);
 	} else {
-		int sd;
+        int as;
 		pthread_t child;
 		FILE *fp;
 
 		while (1)                         /* process all incoming clients */
 		{
-			sd = accept(sd, 0, 0);     /* accept connection */
-			fp = fdopen(sd, "r+");           /* convert into FILE* */
+			     /* accept connection */
+	        if ( (as = accept(sd, 0, 0)) == -1 ) {
+        		perror("accept");
+        		syslog(LOG_NOTICE, "problem with socket accept");	
+        		exit(1);
+            }
+			fp = fdopen(as, "r+");           /* convert into FILE* */
 			pthread_create(&child, 0, servlet, fp);       /* start thread */
 			pthread_detach(child);                      /* don't track it */
 		}
@@ -158,10 +164,12 @@ int main(int argc, char **argv)
 	setbuf(stdout, NULL);
 	syslog(LOG_NOTICE, "----------Starting temperatire monitoring server----------");
 
-	if (argc < 2) {
+	if (argc != 2) {
 		syslog(LOG_ERR,"Please run the program with username: %s <username>\n",argv[0]);
 		return -1; 
 	}
+    conf_user = argv[1];
+    InitTemp();
 
 	signal(SIGTERM,signal_handler); /* catch kill signal */
 	signal(SIGINT,signal_handler); /* catch kill signal */
