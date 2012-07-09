@@ -67,3 +67,4 @@ int main()
 	}
 	return 0;
 }
+// vim: noet:sw=4:ts=4:sts=0
