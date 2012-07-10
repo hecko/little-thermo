@@ -32,7 +32,7 @@
 
 unsigned char version;
 littleWire *myLittleWire = NULL;
-char *conf_user;
+char *conf_serial;
 
 void signal_handler(int sig)
 {
@@ -97,7 +97,7 @@ void *Sender(void *arg)
 		temp_c = ReadTemp();
 		if (curl_handle) {
 			//prepare post data
-			asprintf(&curl_data, "user=%s&key=temp&val=%f", conf_user, temp_c);
+			asprintf(&curl_data, "sn=%s&key=temp&val=%f", conf_serial, temp_c);
 			//set URL and POST data
 			curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, curl_data);
 			curl_easy_setopt(curl_handle, CURLOPT_URL,
@@ -193,11 +193,11 @@ int main(int argc, char **argv)
 		   "Starting temperature monitoring server");
 
 	if (argc != 2) {
-		syslog(LOG_ERR, "Please run the program with username: %s <username>\n",
+		syslog(LOG_ERR, "Please run the program with serial number: %s <serial>\n",
 			   argv[0]);
 		exit(1);
 	}
-	conf_user = argv[1];
+	conf_serial = argv[1];
 	InitTemp();
 
 	signal(SIGTERM, signal_handler);	/* catch kill signal */
