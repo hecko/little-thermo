@@ -21,6 +21,7 @@
 #include <string.h>
 #include <netdb.h>
 #include <sys/un.h>
+#include "usbenum.h"
 
 #define PROG_NAME "temp_server"
 #define SEND_INTERVAL 5000
@@ -31,8 +32,12 @@
 //#define DUMMY_SENSOR 1
 
 unsigned char version;
-littleWire *myLittleWire = NULL;
-char *conf_serial;
+struct SensorInfo {
+	char *serial;
+	littleWire *lw;
+	struct SensorInfo *next;
+};
+struct SensorInfo *sensorInfo = NULL;
 
 void signal_handler(int sig)
 {
@@ -48,27 +53,52 @@ void signal_handler(int sig)
 	}
 }
 
-void InitTemp(void)
+void InitTemp(char *serial, littleWire **myLittleWire)
 {
 #ifdef DUMMY_SENSOR
 	return;
 #endif
-	myLittleWire = littleWire_connect();
+	syslog(LOG_DEBUG, "init serial %s called\n", serial);
+	//myLittleWire = littleWire_connect();
+	usbOpenDevice(myLittleWire, VENDOR_ID, "*", PRODUCT_ID, "*", serial, NULL, NULL );
 
-	if (myLittleWire == NULL) {
+	if (*myLittleWire == NULL) {
 		syslog(LOG_ERR,
 			   "Little Wire could not be found! Is it plugged in and are you running this as root?\n");
 		exit(EXIT_FAILURE);
 	}
 
-	version = readFirmwareVersion(myLittleWire);
+	version = readFirmwareVersion(*myLittleWire);
 	syslog(LOG_ERR, "Little Wire firmware version: %d.%d\n",
 		   ((version & 0xF0) >> 4), (version & 0x0F));
 
-	pinMode(myLittleWire, PIN2, INPUT);
+	pinMode(*myLittleWire, PIN2, INPUT);
 }
 
-float ReadTemp(void)
+void InitAllTemp(char **serials)
+{
+	struct SensorInfo *newSI = NULL;
+	struct SensorInfo *prevSI = sensorInfo;
+	int i;
+
+	for(i = 0; serials[i] != NULL; ++i) {
+		newSI = malloc(sizeof(struct SensorInfo));
+		newSI->lw = NULL;
+		newSI->next = NULL;
+		newSI->serial = malloc(strlen(serials[i])+1);
+		strcpy(newSI->serial, serials[i]);
+		InitTemp(newSI->serial, &(newSI->lw));
+		if (prevSI == NULL) {
+			sensorInfo = newSI;
+			prevSI = newSI;
+		} else {
+			prevSI->next = newSI;
+			prevSI = newSI;
+		}
+	}
+}
+
+float ReadTemp(littleWire *myLittleWire)
 {
 	unsigned int adcValue;
 #ifdef DUMMY_SENSOR
@@ -84,35 +114,54 @@ float ReadTemp(void)
 	return (float)((0.888 * adcValue) - 235.8);
 }
 
+size_t curl_discard_write( char *ptr, size_t size, size_t nmemb, void *userdata)
+{
+	return size*nmemb;
+}
+
+int http_send_temp(CURL *curl_handle, char *serial, float temp_c)
+{
+	CURLcode res;
+	char *curl_data;
+
+	if (curl_handle) {
+		//prepare post data
+		asprintf(&curl_data, "sn=%s&key=temp&val=%g", serial, temp_c);
+		//set URL and POST data
+		curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, curl_data);
+		curl_easy_setopt(curl_handle, CURLOPT_URL,
+						 "http://linode.blava.net/meter/");
+		//set no progress meter
+		curl_easy_setopt(curl_handle, CURLOPT_NOPROGRESS, 1L);
+		curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, &curl_discard_write);
+		res = curl_easy_perform(curl_handle);
+		if (res != CURLE_OK) {
+			syslog(LOG_NOTICE, "curl_easy_perform() failed: %s\n",
+				   curl_easy_strerror(res));
+		}
+		syslog(LOG_INFO, "%s\n", curl_data);
+		free(curl_data);
+	}
+}
+
 //sender part which regularly sends data to the cloud 
 void *Sender(void *arg)
 {
 	CURL *curl_handle;
-	CURLcode res;
-	curl_handle = curl_easy_init();
-	char *curl_data;
 
+	if(!(curl_handle = curl_easy_init())) {
+		syslog(LOG_ERR, "curl_easy_init failed\n");
+		return;
+	}
 	while (1) {
 		float temp_c;
-		temp_c = ReadTemp();
-		if (curl_handle) {
-			//prepare post data
-			asprintf(&curl_data, "sn=%s&key=temp&val=%f", conf_serial, temp_c);
-			//set URL and POST data
-			curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, curl_data);
-			curl_easy_setopt(curl_handle, CURLOPT_URL,
-							 "http://linode.blava.net/meter/");
-			//set no progress meter
-			curl_easy_setopt(curl_handle, CURLOPT_NOPROGRESS, 1L);
-			res = curl_easy_perform(curl_handle);
-			if (res != CURLE_OK) {
-				syslog(LOG_NOTICE, "curl_easy_perform() failed: %s\n",
-					   curl_easy_strerror(res));
-			}
-		}
-		syslog(LOG_INFO, "%s\n", curl_data);
-		//free(curl_data);
+		struct SensorInfo *pSI = sensorInfo;
 
+		while(pSI != NULL) {
+			temp_c = ReadTemp(pSI->lw);
+			http_send_temp(curl_handle, pSI->serial, temp_c);
+			pSI = pSI->next;
+		}
 		delay(SEND_INTERVAL);
 	}
 	curl_easy_cleanup(curl_handle);
@@ -122,9 +171,13 @@ void *servlet(void *arg)
 {								/* servlet thread */
 	FILE *fp = (FILE *) arg;	/* get & convert the data */
 	float temp_c;
+	struct SensorInfo *pSI = sensorInfo;
 
-	temp_c = ReadTemp();
-	fprintf(fp, "%f", temp_c);	/* echo it back */
+	while(pSI != NULL) {
+		temp_c = ReadTemp(pSI->lw);
+		fprintf(fp, "%s:%g\n", pSI->serial, temp_c);	/* echo it back */
+		pSI = pSI->next;
+	}
 	fclose(fp);					/* close the client's channel */
 	return 0;					/* terminate the thread */
 }
@@ -186,19 +239,34 @@ void *Server(void *arg)
 
 int main(int argc, char **argv)
 {
+	char **serials;
+	int i;
+
 	openlog(PROG_NAME, LOG_NOWAIT | LOG_PID, LOG_USER);
 	//disable stdout buffering
 	setbuf(stdout, NULL);
-	syslog(LOG_NOTICE,
-		   "Starting temperature monitoring server");
 
-	if (argc != 2) {
-		syslog(LOG_ERR, "Please run the program with serial number: %s <serial>\n",
-			   argv[0]);
-		exit(1);
+	//if (argc != 2) {
+	//	syslog(LOG_ERR, "Please run the program with serial number: %s <serial>\n",
+	//		   argv[0]);
+	//	exit(1);
+	//}
+	//conf_serial = argv[1];
+
+	usb_init();
+	serials = list_dev_serial(VENDOR_ID, PRODUCT_ID);
+	for(i = 0; serials[i] != NULL; ++i)
+		;
+	if (i > 0) {
+		syslog(LOG_INFO,"Found %d devices.", i);
+	} else {
+		syslog(LOG_ERR,"Found %d devices, exiting.", i);
+		exit(EXIT_FAILURE);
 	}
-	conf_serial = argv[1];
-	InitTemp();
+	InitAllTemp(serials);
+	free_dev_serial(serials);
+
+	syslog(LOG_NOTICE, "Starting temperature monitoring server");
 
 	signal(SIGTERM, signal_handler);	/* catch kill signal */
 	signal(SIGINT, signal_handler);	/* catch kill signal */
