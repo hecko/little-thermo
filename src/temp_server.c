@@ -21,6 +21,7 @@
 #include <string.h>
 #include <netdb.h>
 #include <sys/un.h>
+#include "usbenum.h"
 
 #define PROG_NAME "temp_server"
 #define SEND_INTERVAL 5000
@@ -33,6 +34,7 @@
 unsigned char version;
 littleWire *myLittleWire = NULL;
 char *conf_serial;
+char **serials;
 
 void signal_handler(int sig)
 {
@@ -48,12 +50,13 @@ void signal_handler(int sig)
 	}
 }
 
-void InitTemp(void)
+void InitTemp(char *serial)
 {
 #ifdef DUMMY_SENSOR
 	return;
 #endif
-	myLittleWire = littleWire_connect();
+	//myLittleWire = littleWire_connect();
+	usbOpenDevice(&myLittleWire, VENDOR_ID, "*", PRODUCT_ID, "*", serial, NULL, NULL );
 
 	if (myLittleWire == NULL) {
 		syslog(LOG_ERR,
@@ -186,19 +189,33 @@ void *Server(void *arg)
 
 int main(int argc, char **argv)
 {
+	char **serials;
+	int i;
+
 	openlog(PROG_NAME, LOG_NOWAIT | LOG_PID, LOG_USER);
 	//disable stdout buffering
 	setbuf(stdout, NULL);
 	syslog(LOG_NOTICE,
 		   "Starting temperature monitoring server");
 
-	if (argc != 2) {
-		syslog(LOG_ERR, "Please run the program with serial number: %s <serial>\n",
-			   argv[0]);
-		exit(1);
+	//if (argc != 2) {
+	//	syslog(LOG_ERR, "Please run the program with serial number: %s <serial>\n",
+	//		   argv[0]);
+	//	exit(1);
+	//}
+	//conf_serial = argv[1];
+
+	usb_init();
+	serials = list_dev_serial(VENDOR_ID, PRODUCT_ID);
+	printf("Found devices: ");
+	for(i = 0; serials[i] != NULL; ++i) {
+		printf("(%s)", serials[i]);
 	}
-	conf_serial = argv[1];
-	InitTemp();
+	printf("\n");
+	free_dev_serial(serials);
+	exit(EXIT_SUCCESS);
+	
+	InitTemp("Beta");
 
 	signal(SIGTERM, signal_handler);	/* catch kill signal */
 	signal(SIGINT, signal_handler);	/* catch kill signal */

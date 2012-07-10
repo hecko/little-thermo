@@ -1,6 +1,4 @@
-
-# Makefile for Little-Wire
-# Created by Omer Kilic <omerkilic@gmail.com>
+# Makefile for Little Temp
 
 CC=gcc
 
@@ -22,12 +20,13 @@ INCLUDE = library
 CFLAGS  = $(USBFLAGS) $(LIBS) -I$(INCLUDE) -O -g $(OSFLAG)
 
 LWLIBS = opendevice littleWire littleWire_util littleWire_servo
+SERVEROBJS = usbenum.o
 EXAMPLES = temp_server temp_client
 LDLIBS = -L/usr/lib/x86_64-linux-gnu -lcurl
 
 .PHONY:	clean library
 
-all: library $(EXAMPLES)
+all: library temp_server temp_client
 
 library: $(LWLIBS)
 
@@ -35,9 +34,17 @@ $(LWLIBS):
 	@echo Building library: $@...
 	$(CC) $(CFLAGS) $(LDLIBS) -c library/$@.c 
 
-$(EXAMPLES): $(addsuffix .o, $(LWLIBS))
-	@echo Building example: $@...
+$(SERVEROBJS):
+	@echo Building server object files: $@...
+	$(CC) $(CFLAGS) -c src/$(subst .o,.c,$@)
+
+temp_server: $(addsuffix .o, $(LWLIBS)) usbenum.o
+	@echo Building server: $@...
 	$(CC) $(CFLAGS) -D_GNU_SOURCE=1 -pthread -Wno-unused-result -o $@$(EXE_SUFFIX) src/$@.c $^ $(LIBS) $(LDLIBS)
 
+temp_client:
+	@echo Building client: $@...
+	$(CC) $(CFLAGS) -D_GNU_SOURCE=1 -Wno-unused-result -o $@$(EXE_SUFFIX) src/$@.c $^
+
 clean:
-	rm -f $(EXAMPLES)$(EXE_SUFFIX) *.o *.exe
+	rm -f temp_client temp_server *.o *.exe
