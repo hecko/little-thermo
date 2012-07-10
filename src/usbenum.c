@@ -4,11 +4,9 @@
 #include <string.h>
 #include <errno.h>
 #include <usb.h>				// this is libusb, see http://libusb.sourceforge.net/
+#include <syslog.h>
 #include "opendevice.h"
 
-void init_usb() {
-	usb_init();
-}
 void free_dev_serial(char **serial)
 {
 	int i;
@@ -27,7 +25,7 @@ char** list_dev_serial(int vendorID, int productID)
 	int nserials = 0;
 
 	if ((serials = malloc(sizeof(void*))) == NULL) {
-		fprintf(stderr, "memory allocation fail!\n");
+		syslog(LOG_ERR, "memory allocation fail!\n");
 		exit(EXIT_FAILURE);
 	}
 	serials[0] = NULL;
@@ -41,7 +39,7 @@ char** list_dev_serial(int vendorID, int productID)
 				int len;
 				handle = usb_open(dev); /* we need to open the device in order to query strings */
 				if (!handle) {
-					printf("Warning: cannot open VID=0x%04x PID=0x%04x: %s\n", dev->descriptor.idVendor, dev->descriptor.idProduct, usb_strerror());
+					syslog(LOG_WARNING, "Warning: cannot open VID=0x%04x PID=0x%04x: %s\n", dev->descriptor.idVendor, dev->descriptor.idProduct, usb_strerror());
 					continue;
 				}
 				len = 0;
@@ -50,22 +48,20 @@ char** list_dev_serial(int vendorID, int productID)
 					len = usbGetStringAscii(handle, dev->descriptor.iSerialNumber, serial, sizeof(serial));
 				}
 				if(len < 0) {
-					printf("Warning: cannot query manufacturer for VID=0x%04x PID=0x%04x: %s\n", dev->descriptor.idVendor, dev->descriptor.idProduct, usb_strerror());
+					syslog(LOG_WARNING, "Warning: cannot query manufacturer for VID=0x%04x PID=0x%04x: %s\n", dev->descriptor.idVendor, dev->descriptor.idProduct, usb_strerror());
 				} else if(len > 0) {
-					printf("Device with serial (%s)\n", serial);
 					nserials++;
 					if ((serials = realloc(serials, (nserials+1) * sizeof(void*))) == NULL ) {
-						fprintf(stderr, "memory allocation fail!\n");
+						syslog(LOG_ERR, "memory allocation fail!\n");
 						exit(EXIT_FAILURE);
 					}
 					serials[nserials-1] = malloc(len+1);
 					strcpy(serials[nserials-1], serial);
 					serials[nserials] = NULL;
 				} else {
-					printf("Warning: device VID=0x%04x PID=0x%04x has no serial number.\n", dev->descriptor.idVendor, dev->descriptor.idProduct);
+					syslog(LOG_WARNING, "Warning: device VID=0x%04x PID=0x%04x has no serial number.\n", dev->descriptor.idVendor, dev->descriptor.idProduct);
 				}
 			} else {
-				printf("Device.\n");
 			}
 		}
 	}
