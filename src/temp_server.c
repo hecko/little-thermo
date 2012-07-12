@@ -109,9 +109,11 @@ float ReadTemp(littleWire *myLittleWire)
 		syslog(LOG_ERR,
 				"Value returned from Little Wire (%u) is not within acceptable range, exiting.\n",
 				adcValue);
-		exit(1);
+                adcValue = 1024;
 	}
-	return (float)((0.888 * adcValue) - 235.8);
+	//return (float)((0.888 * adcValue) - 235.8);
+    return (float)((adcValue * 0.0982) - 1.1878);
+    // return adcValue;
 }
 
 size_t curl_discard_write( char *ptr, size_t size, size_t nmemb, void *userdata)
