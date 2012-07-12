@@ -112,8 +112,8 @@ float ReadTemp(littleWire *myLittleWire)
                 adcValue = 1024;
 	}
 	//return (float)((0.888 * adcValue) - 235.8);
-    return (float)((adcValue * 0.0982) - 1.1878);
-    // return adcValue;
+    return (float)((adcValue * 0.1818) - 25.0364);
+    //return adcValue;
 }
 
 size_t curl_discard_write( char *ptr, size_t size, size_t nmemb, void *userdata)
