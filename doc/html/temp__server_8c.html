@@ -101,6 +101,7 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
 <code>#include &lt;netdb.h&gt;</code><br/>
 <code>#include &lt;sys/un.h&gt;</code><br/>
 <code>#include &quot;<a class="el" href="usbenum_8h_source.html">usbenum.h</a>&quot;</code><br/>
+<code>#include &lt;usb.h&gt;</code><br/>
 </div><table class="memberdecls">
 <tr><td colspan="2"><h2><a name="nested-classes"></a>
 Classes</h2></td></tr>
@@ -114,8 +115,9 @@ Defines</h2></td></tr>
 Functions</h2></td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="temp__server_8c.html#a6aa59f98cad89c73966351ad7afb303c">signal_handler</a> (int sig)</td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="temp__server_8c.html#a00376a01c184fc408dda9b502e4ae0ad">InitTemp</a> (char *serial, <a class="el" href="littleWire_8h.html#a60ebdb67927ed8072efb1ecf6e7379c9">littleWire</a> **myLittleWire)</td></tr>
-<tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="temp__server_8c.html#ad73a14dac57a03c034784180dfb72031">InitAllTemp</a> (char **serials)</td></tr>
-<tr><td class="memItemLeft" align="right" valign="top">float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="temp__server_8c.html#a23c1ddeb71ddaded0dc4c779280b9dd3">ReadTemp</a> (<a class="el" href="littleWire_8h.html#a60ebdb67927ed8072efb1ecf6e7379c9">littleWire</a> *myLittleWire)</td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="temp__server_8c.html#aac16a65fcca05a0d22bb85668eb02481">EnumAllTemp</a> ()</td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="temp__server_8c.html#ab030508c362c8b8f68854bab462b7dfe">CloseTemp</a> (<a class="el" href="littleWire_8h.html#a60ebdb67927ed8072efb1ecf6e7379c9">littleWire</a> *lw)</td></tr>
+<tr><td class="memItemLeft" align="right" valign="top">float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="temp__server_8c.html#a109e0b49a60a76a26eb7061cd6badbe4">ReadTemp</a> (char *serial)</td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="temp__server_8c.html#a89b64406da87a314beed46b535d3adb4">curl_discard_write</a> (char *ptr, size_t size, size_t nmemb, void *userdata)</td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="temp__server_8c.html#ae7f49f67d6db1c18dc4d55dbcadad16c">http_send_temp</a> (CURL *curl_handle, char *serial, float temp_c)</td></tr>
 <tr><td class="memItemLeft" align="right" valign="top">void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="temp__server_8c.html#a065ff831847d45949ff18c343627d0ef">Sender</a> (void *arg)</td></tr>
@@ -168,6 +170,23 @@ Variables</h2></td></tr>
 </div>
 </div>
 <hr/><h2>Function Documentation</h2>
+<a class="anchor" id="ab030508c362c8b8f68854bab462b7dfe"></a><!-- doxytag: member="temp_server.c::CloseTemp" ref="ab030508c362c8b8f68854bab462b7dfe" args="(littleWire *lw)" -->
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void <a class="el" href="temp__server_8c.html#ab030508c362c8b8f68854bab462b7dfe">CloseTemp</a> </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="littleWire_8h.html#a60ebdb67927ed8072efb1ecf6e7379c9">littleWire</a> *&#160;</td>
+          <td class="paramname"><em>lw</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div>
+<div class="memdoc">
+
+</div>
+</div>
 <a class="anchor" id="a89b64406da87a314beed46b535d3adb4"></a><!-- doxytag: member="temp_server.c::curl_discard_write" ref="a89b64406da87a314beed46b535d3adb4" args="(char *ptr, size_t size, size_t nmemb, void *userdata)" -->
 <div class="memitem">
 <div class="memproto">
@@ -207,6 +226,22 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a class="anchor" id="aac16a65fcca05a0d22bb85668eb02481"></a><!-- doxytag: member="temp_server.c::EnumAllTemp" ref="aac16a65fcca05a0d22bb85668eb02481" args="()" -->
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void <a class="el" href="temp__server_8c.html#aac16a65fcca05a0d22bb85668eb02481">EnumAllTemp</a> </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div>
+<div class="memdoc">
+
+</div>
+</div>
 <a class="anchor" id="ae7f49f67d6db1c18dc4d55dbcadad16c"></a><!-- doxytag: member="temp_server.c::http_send_temp" ref="ae7f49f67d6db1c18dc4d55dbcadad16c" args="(CURL *curl_handle, char *serial, float temp_c)" -->
 <div class="memitem">
 <div class="memproto">
@@ -233,23 +268,6 @@ Variables</h2></td></tr>
           <td></td>
           <td>)</td>
           <td></td><td></td>
-        </tr>
-      </table>
-</div>
-<div class="memdoc">
-
-</div>
-</div>
-<a class="anchor" id="ad73a14dac57a03c034784180dfb72031"></a><!-- doxytag: member="temp_server.c::InitAllTemp" ref="ad73a14dac57a03c034784180dfb72031" args="(char **serials)" -->
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void <a class="el" href="temp__server_8c.html#ad73a14dac57a03c034784180dfb72031">InitAllTemp</a> </td>
-          <td>(</td>
-          <td class="paramtype">char **&#160;</td>
-          <td class="paramname"><em>serials</em></td><td>)</td>
-          <td></td>
         </tr>
       </table>
 </div>
@@ -308,18 +326,19 @@ Variables</h2></td></tr>
       </table>
 </div>
 <div class="memdoc">
+<p>enumerating USB devices for the whole time while program is running </p>
 
 </div>
 </div>
-<a class="anchor" id="a23c1ddeb71ddaded0dc4c779280b9dd3"></a><!-- doxytag: member="temp_server.c::ReadTemp" ref="a23c1ddeb71ddaded0dc4c779280b9dd3" args="(littleWire *myLittleWire)" -->
+<a class="anchor" id="a109e0b49a60a76a26eb7061cd6badbe4"></a><!-- doxytag: member="temp_server.c::ReadTemp" ref="a109e0b49a60a76a26eb7061cd6badbe4" args="(char *serial)" -->
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">float <a class="el" href="temp__server_8c.html#a23c1ddeb71ddaded0dc4c779280b9dd3">ReadTemp</a> </td>
+          <td class="memname">float <a class="el" href="temp__server_8c.html#a109e0b49a60a76a26eb7061cd6badbe4">ReadTemp</a> </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="littleWire_8h.html#a60ebdb67927ed8072efb1ecf6e7379c9">littleWire</a> *&#160;</td>
-          <td class="paramname"><em>myLittleWire</em></td><td>)</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>serial</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
@@ -441,7 +460,7 @@ Variables</h2></td></tr>
 
 
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Jul 18 2012 11:55:34 for little-thermo by &#160;<a href="http://www.doxygen.org/index.html">
+Generated on Wed Jul 18 2012 16:06:03 for little-thermo by &#160;<a href="http://www.doxygen.org/index.html">
 <img class="footer" src="doxygen.png" alt="doxygen"/>
 </a> 1.7.6.1
 </small></address>

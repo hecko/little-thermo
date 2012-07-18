@@ -3,6 +3,8 @@
 	by ihsan Kehribar <ihsan@kehribar.me>
 	Changed: July 2012
 	by Marcel Hecko <maco@blava.net>
+    Heavily improved July 2012
+    by Michal Belica
 */
 
 #include <stdio.h>
@@ -67,12 +69,12 @@ void InitTemp(char *serial, littleWire **myLittleWire)
 	if (*myLittleWire == NULL || ret != 0) {
 		syslog(LOG_ERR,
 			   "Little Wire could not be found! Is it plugged in and are you running this as root?\n");
-		exit(EXIT_FAILURE);
+		//exit(EXIT_FAILURE);
 	}
 
 	version = readFirmwareVersion(*myLittleWire);
-	syslog(LOG_ERR, "Little Wire firmware version: %d.%d\n",
-		   ((version & 0xF0) >> 4), (version & 0x0F));
+	//syslog(LOG_ERR, "Little Wire firmware version: %d.%d\n",
+	//	   ((version & 0xF0) >> 4), (version & 0x0F));
 
 	pinMode(*myLittleWire, PIN2, INPUT);
 }
@@ -85,28 +87,29 @@ void EnumAllTemp()
 	int i;
 
 	serials = list_dev_serial(VENDOR_ID, PRODUCT_ID);
-	for (i = 0; serials[i] != NULL; ++i)
-		;
+	for (i = 0; serials[i] != NULL; ++i) {
+        syslog(LOG_INFO,"Found %s \n",serials[i]);
+    }
 	syslog(LOG_INFO,"Found %d devices.", i);
 	if (i == 0)
-		exit(EXIT_FAILURE);
+        syslog(LOG_ERR, "Found no devices.\n");
+		//exit(EXIT_FAILURE);
 
 	for (i = 0; serials[i] != NULL; ++i) {
 		newSI = malloc(sizeof(struct SensorInfo));
-		//newSI->lw = NULL;
 		newSI->next = NULL;
 		newSI->serial = malloc(strlen(serials[i])+1);
 		strcpy(newSI->serial, serials[i]);
-		//InitTemp(newSI->serial, &(newSI->lw));
 		if (prevSI == NULL) {
-			sensorInfo = newSI;
+	        sensorInfo = newSI;
 			prevSI = newSI;
 		} else {
 			prevSI->next = newSI;
-			prevSI = newSI;
+		    prevSI = newSI;
 		}
 	}
 	free_dev_serial(serials);
+    syslog(LOG_INFO,"EnumAllTemp funcion ended\n");
 }
 
 void CloseTemp(littleWire *lw)
@@ -179,11 +182,17 @@ void *Sender(void *arg)
 		float temp_c;
 		struct SensorInfo *pSI = sensorInfo;
 
+        usb_init();
+        EnumAllTemp();
+
 		while(pSI != NULL) {
+            syslog(LOG_INFO,"Reading temp from serial %s \n",pSI->serial);
 			temp_c = ReadTemp(pSI->serial);
 			http_send_temp(curl_handle, pSI->serial, temp_c);
 			pSI = pSI->next;
 		}
+        free(pSI);
+        
 		delay(SEND_INTERVAL);
 	}
 	curl_easy_cleanup(curl_handle);
@@ -274,8 +283,8 @@ int main(int argc, char **argv)
 	//}
 	//conf_serial = argv[1];
 
-	usb_init();
-	EnumAllTemp();
+	//usb_init();
+	//EnumAllTemp();
 
 	syslog(LOG_NOTICE, "Starting temperature monitoring server");
 
@@ -307,7 +316,7 @@ int main(int argc, char **argv)
 		syslog(LOG_NOTICE, "...now a full-featured child :)");
 		pthread_t sender_child, server_child;
 		pthread_create(&sender_child, NULL, Sender, NULL);
-		pthread_create(&server_child, NULL, Server, NULL);
+		//pthread_create(&server_child, NULL, Server, NULL);
 		pthread_join(sender_child, NULL);
 		closelog();
 		pthread_exit(NULL);

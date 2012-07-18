@@ -10,6 +10,5 @@ var searchData=
   ['littlewire_5futil_2ec',['littleWire_util.c',['../littleWire__util_8c.html',1,'']]],
   ['littlewire_5futil_2eh',['littleWire_util.h',['../littleWire__util_8h.html',1,'']]],
   ['local_5fserver_5fport',['LOCAL_SERVER_PORT',['../temp__server_8c.html#aaa94354c85f94992aedbe97da4da440b',1,'temp_server.c']]],
-  ['low',['LOW',['../littleWire_8h.html#ab811d8c6ff3a505312d3276590444289',1,'littleWire.h']]],
-  ['lw',['lw',['../structSensorInfo.html#a642d8458a79baf5e349360b6ff0e66a8',1,'SensorInfo']]]
+  ['low',['LOW',['../littleWire_8h.html#ab811d8c6ff3a505312d3276590444289',1,'littleWire.h']]]
 ];
