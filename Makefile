@@ -6,8 +6,10 @@ CC=gcc
 ifeq ($(shell uname), Linux)
 	USBFLAGS = `libusb-config --cflags`
 	USBLIBS = `libusb-config --libs`
-	EXE_SUFFIX =
+	EXE_SUFFIX = 
 	OSFLAG = -D LINUX
+    BIN_DIR = bin
+    SBIN_DIR = sbin
 else
 	USBFLAGS = -I C:\MinGW\include
 	USBLIBS = -L C:\MinGW\lib -lusb
@@ -19,7 +21,7 @@ LIBS    = $(USBLIBS)
 INCLUDE = library
 CFLAGS  = $(USBFLAGS) $(LIBS) -I$(INCLUDE) -O -g $(OSFLAG)
 
-LWLIBS = opendevice littleWire littleWire_util littleWire_servo
+LWLIBS = opendevice littleWire littleWire_util 
 SERVERCODE = usbenum
 EXAMPLES = temp_server temp_client
 LDLIBS = -L/usr/lib/x86_64-linux-gnu -lcurl
@@ -40,11 +42,11 @@ $(addsuffix .o,$(SERVERCODE)): $(addprefix src/, $(addsuffix .c, $(SERVERCODE)))
 
 temp_server: $(addsuffix .o, $(LWLIBS)) $(addsuffix .o, $(SERVERCODE))
 	@echo Building server: $@...
-	$(CC) $(CFLAGS) -D_GNU_SOURCE=1 -pthread -Wno-unused-result -o $@$(EXE_SUFFIX) src/$@.c $^ $(LIBS) $(LDLIBS)
+	$(CC) $(CFLAGS) -D_GNU_SOURCE=1 -pthread -Wno-unused-result -o $(SBIN_DIR)/$@$(EXE_SUFFIX) src/$@.c $^ $(LIBS) $(LDLIBS)
 
 temp_client:
 	@echo Building client: $@...
-	$(CC) $(CFLAGS) -D_GNU_SOURCE=1 -Wno-unused-result -o $@$(EXE_SUFFIX) src/$@.c $^
+	$(CC) $(CFLAGS) -D_GNU_SOURCE=1 -Wno-unused-result -o $(BIN_DIR)/$@$(EXE_SUFFIX) src/$@.c $^
 
 clean:
-	rm -f temp_client temp_server *.o *.exe
+	rm -f $(BIN_DIR)/* $(SBIN_DIR)/* *.o *.exe

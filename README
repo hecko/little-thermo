@@ -1,3 +1,10 @@
 developed by
-Michal Belica
-Marcel Hecko
+  Michal Belica
+on a base by
+  Marcel Hecko
+who based the code on top of code from
+  Ihsan Kehribar
+
+This is a temperature reading application - reads temperature sensor information from ATTiny internal TEMP sensor and presents them to the user in varios forms. 
+It is a application which also automatically sends the data with information from seriaol part of the hardware sensor to TmeperMe.com cloud-based monitoring platform.
+
