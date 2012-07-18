@@ -22,6 +22,7 @@
 #include <netdb.h>
 #include <sys/un.h>
 #include "usbenum.h"
+#include <usb.h>
 
 #define PROG_NAME "temp_server"
 #define SEND_INTERVAL 5000
@@ -34,7 +35,7 @@
 unsigned char version;
 struct SensorInfo {
 	char *serial;
-	littleWire *lw;
+	//littleWire *lw;
 	struct SensorInfo *next;
 };
 struct SensorInfo *sensorInfo = NULL;
@@ -55,14 +56,15 @@ void signal_handler(int sig)
 
 void InitTemp(char *serial, littleWire **myLittleWire)
 {
+	int ret;
 #ifdef DUMMY_SENSOR
 	return;
 #endif
 	syslog(LOG_DEBUG, "init serial %s called\n", serial);
 	//myLittleWire = littleWire_connect();
-	usbOpenDevice(myLittleWire, VENDOR_ID, "*", PRODUCT_ID, "*", serial, NULL, NULL );
+	ret = usbOpenDevice(myLittleWire, VENDOR_ID, "*", PRODUCT_ID, "*", serial, NULL, NULL );
 
-	if (*myLittleWire == NULL) {
+	if (*myLittleWire == NULL || ret != 0) {
 		syslog(LOG_ERR,
 			   "Little Wire could not be found! Is it plugged in and are you running this as root?\n");
 		exit(EXIT_FAILURE);
@@ -75,19 +77,27 @@ void InitTemp(char *serial, littleWire **myLittleWire)
 	pinMode(*myLittleWire, PIN2, INPUT);
 }
 
-void InitAllTemp(char **serials)
+void EnumAllTemp()
 {
+	char **serials;
 	struct SensorInfo *newSI = NULL;
 	struct SensorInfo *prevSI = sensorInfo;
 	int i;
 
-	for(i = 0; serials[i] != NULL; ++i) {
+	serials = list_dev_serial(VENDOR_ID, PRODUCT_ID);
+	for (i = 0; serials[i] != NULL; ++i)
+		;
+	syslog(LOG_INFO,"Found %d devices.", i);
+	if (i == 0)
+		exit(EXIT_FAILURE);
+
+	for (i = 0; serials[i] != NULL; ++i) {
 		newSI = malloc(sizeof(struct SensorInfo));
-		newSI->lw = NULL;
+		//newSI->lw = NULL;
 		newSI->next = NULL;
 		newSI->serial = malloc(strlen(serials[i])+1);
 		strcpy(newSI->serial, serials[i]);
-		InitTemp(newSI->serial, &(newSI->lw));
+		//InitTemp(newSI->serial, &(newSI->lw));
 		if (prevSI == NULL) {
 			sensorInfo = newSI;
 			prevSI = newSI;
@@ -96,15 +106,25 @@ void InitAllTemp(char **serials)
 			prevSI = newSI;
 		}
 	}
+	free_dev_serial(serials);
 }
 
-float ReadTemp(littleWire *myLittleWire)
+void CloseTemp(littleWire *lw)
 {
+	usb_close(lw);
+	lw = NULL;
+}
+
+float ReadTemp(char *serial)
+{
+	littleWire *lw;
 	unsigned int adcValue;
 #ifdef DUMMY_SENSOR
 	return 3.1415926535897932384626433832;
 #endif
-	adcValue = analogRead(myLittleWire, ADC_TEMP_SENS);
+	InitTemp(serial, &lw);
+	adcValue = analogRead(lw, ADC_TEMP_SENS);
+	CloseTemp(lw);
 	if (adcValue <= 230 || adcValue >= 370) { /* which corresponds to -40 to 85 C */
 		syslog(LOG_ERR,
 				"Value returned from Little Wire (%u) is not within acceptable range, exiting.\n",
@@ -160,7 +180,7 @@ void *Sender(void *arg)
 		struct SensorInfo *pSI = sensorInfo;
 
 		while(pSI != NULL) {
-			temp_c = ReadTemp(pSI->lw);
+			temp_c = ReadTemp(pSI->serial);
 			http_send_temp(curl_handle, pSI->serial, temp_c);
 			pSI = pSI->next;
 		}
@@ -176,7 +196,7 @@ void *servlet(void *arg)
 	struct SensorInfo *pSI = sensorInfo;
 
 	while(pSI != NULL) {
-		temp_c = ReadTemp(pSI->lw);
+		temp_c = ReadTemp(pSI->serial);
 		fprintf(fp, "%s:%g\n", pSI->serial, temp_c);	/* echo it back */
 		pSI = pSI->next;
 	}
@@ -241,7 +261,6 @@ void *Server(void *arg)
 
 int main(int argc, char **argv)
 {
-	char **serials;
 	int i;
 
 	openlog(PROG_NAME, LOG_NOWAIT | LOG_PID, LOG_USER);
@@ -256,17 +275,7 @@ int main(int argc, char **argv)
 	//conf_serial = argv[1];
 
 	usb_init();
-	serials = list_dev_serial(VENDOR_ID, PRODUCT_ID);
-	for(i = 0; serials[i] != NULL; ++i)
-		;
-	if (i > 0) {
-		syslog(LOG_INFO,"Found %d devices.", i);
-	} else {
-		syslog(LOG_ERR,"Found %d devices, exiting.", i);
-		exit(EXIT_FAILURE);
-	}
-	InitAllTemp(serials);
-	free_dev_serial(serials);
+	EnumAllTemp();
 
 	syslog(LOG_NOTICE, "Starting temperature monitoring server");
 
