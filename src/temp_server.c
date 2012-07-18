@@ -127,9 +127,9 @@ float ReadTemp(char *serial)
 	CloseTemp(lw);
 	if (adcValue <= 230 || adcValue >= 370) { /* which corresponds to -40 to 85 C */
 		syslog(LOG_ERR,
-				"Value returned from Little Wire (%u) is not within acceptable range, exiting.\n",
+				"Value returned from Little Wire (%u) is not within acceptable range. Setting the value to 300.\n",
 				adcValue);
-                adcValue = 1024;
+                adcValue = 300;
 	}
 	//return (float)((0.888 * adcValue) - 235.8);
     return (float)((adcValue * 0.1818) - 25.0364);
