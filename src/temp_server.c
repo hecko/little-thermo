@@ -62,7 +62,7 @@ void InitTemp(char *serial, littleWire **myLittleWire)
 #ifdef DUMMY_SENSOR
 	return;
 #endif
-	syslog(LOG_DEBUG, "init serial %s called\n", serial);
+	syslog(LOG_DEBUG, "InitTemp serial %s called\n", serial);
 	//myLittleWire = littleWire_connect();
 	ret = usbOpenDevice(myLittleWire, VENDOR_ID, "*", PRODUCT_ID, "*", serial, NULL, NULL );
 
@@ -73,10 +73,24 @@ void InitTemp(char *serial, littleWire **myLittleWire)
 	}
 
 	version = readFirmwareVersion(*myLittleWire);
-	//syslog(LOG_ERR, "Little Wire firmware version: %d.%d\n",
-	//	   ((version & 0xF0) >> 4), (version & 0x0F));
+	syslog(LOG_ERR, "Little Wire firmware version: %d.%d\n",
+	        ((version & 0xF0) >> 4), (version & 0x0F));
 
 	pinMode(*myLittleWire, PIN2, INPUT);
+}
+
+void SIDel() {
+    struct SensorInfo *si = NULL, *psi;
+
+    while (si = sensorInfo) {
+        if (si != NULL) {
+            si = si->next;
+            syslog(LOG_INFO,"Deleting sensor %s\n",si->serial);
+            psi = si;
+            free(psi);
+        }
+    }
+    sensorInfo = NULL;
 }
 
 void EnumAllTemp()
@@ -85,6 +99,8 @@ void EnumAllTemp()
 	struct SensorInfo *newSI = NULL;
 	struct SensorInfo *prevSI = sensorInfo;
 	int i;
+
+    SIDel();
 
 	serials = list_dev_serial(VENDOR_ID, PRODUCT_ID);
 	for (i = 0; serials[i] != NULL; ++i) {
@@ -96,7 +112,14 @@ void EnumAllTemp()
 		//exit(EXIT_FAILURE);
 
 	for (i = 0; serials[i] != NULL; ++i) {
+        syslog(LOG_ERR, "Malloc for %s\n",serials[i]);
 		newSI = malloc(sizeof(struct SensorInfo));
+        if (newSI == NULL) {
+            syslog(LOG_ERR, "newSI is NULL! Exitting.");
+            exit;
+        } else {
+            syslog(LOG_ERR, "newSI is allocated!");
+        }
 		newSI->next = NULL;
 		newSI->serial = malloc(strlen(serials[i])+1);
 		strcpy(newSI->serial, serials[i]);
@@ -172,7 +195,9 @@ int http_send_temp(CURL *curl_handle, char *serial, float temp_c)
 //sender part which regularly sends data to the cloud 
 void *Sender(void *arg)
 {
+    char **serials;
 	CURL *curl_handle;
+    int i;
 
 	if(!(curl_handle = curl_easy_init())) {
 		syslog(LOG_ERR, "curl_easy_init failed\n");
@@ -183,18 +208,20 @@ void *Sender(void *arg)
 		struct SensorInfo *pSI = sensorInfo;
 
         usb_init();
-        EnumAllTemp();
-
-		while(pSI != NULL) {
-            syslog(LOG_INFO,"Reading temp from serial %s \n",pSI->serial);
-			temp_c = ReadTemp(pSI->serial);
-			http_send_temp(curl_handle, pSI->serial, temp_c);
-			pSI = pSI->next;
+        //EnumAllTemp();
+        serials = list_dev_serial(VENDOR_ID, PRODUCT_ID);
+        for (i = 0; serials[i] != NULL; ++i) {
+		//while(pSI != NULL) {
+            syslog(LOG_INFO,"Reading temp from serial %s \n",serials[i]);
+			temp_c = ReadTemp(serials[i]);
+			http_send_temp(curl_handle, serials[i], temp_c);
+			//pSI = (*pSI).next;
 		}
-        free(pSI);
+        //free(pSI);
         
 		delay(SEND_INTERVAL);
 	}
+    free_dev_serial(serials);
 	curl_easy_cleanup(curl_handle);
 }
 
@@ -205,9 +232,9 @@ void *servlet(void *arg)
 	struct SensorInfo *pSI = sensorInfo;
 
 	while(pSI != NULL) {
-		temp_c = ReadTemp(pSI->serial);
-		fprintf(fp, "%s:%g\n", pSI->serial, temp_c);	/* echo it back */
-		pSI = pSI->next;
+		temp_c = ReadTemp((*pSI).serial);
+		fprintf(fp, "%s:%g\n", (*pSI).serial, temp_c);	/* echo it back */
+		pSI = (*pSI).next;
 	}
 	fclose(fp);					/* close the client's channel */
 	return 0;					/* terminate the thread */
@@ -232,14 +259,14 @@ void *Server(void *arg)
 		exit(1);
 	}
 
-	if ((sd = socket(ans->ai_family, ans->ai_socktype, ans->ai_protocol)) < 0) {
+	if ((sd = socket((*ans).ai_family, (*ans).ai_socktype, (*ans).ai_protocol)) < 0) {
 		syslog(LOG_ERR, "cannot create socket \n");
 		exit(1);
 	}
 	optval = 1;
 	setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
 
-	if (bind(sd, ans->ai_addr, ans->ai_addrlen) != 0) {
+	if (bind(sd, (*ans).ai_addr, (*ans).ai_addrlen) != 0) {
 		syslog(LOG_ERR, "problem with server bind");
 		exit(1);
 	}
