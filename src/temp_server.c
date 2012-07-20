@@ -91,69 +91,13 @@ void InitTemp(char *serial, littleWire **myLittleWire)
 	pinMode(*myLittleWire, PIN2, INPUT);
 }
 
-void SIDel() {
-    struct SensorInfo *si = NULL, *psi;
-
-    while (si = sensorInfo) {
-        if (si != NULL) {
-            si = si->next;
-            syslog(LOG_INFO,"Deleting sensor %s\n",si->serial);
-            psi = si;
-            free(psi);
-        }
-    }
-    sensorInfo = NULL;
-}
-
-void EnumAllTemp()
-{
-	char **serials;
-	struct SensorInfo *newSI = NULL;
-	struct SensorInfo *prevSI = sensorInfo;
-	int i;
-
-    SIDel();
-
-	serials = list_dev_serial(VENDOR_ID, PRODUCT_ID);
-	for (i = 0; serials[i] != NULL; ++i) {
-        syslog(LOG_INFO,"Found %s \n",serials[i]);
-    }
-	syslog(LOG_INFO,"Found %d devices.", i);
-	if (i == 0)
-        syslog(LOG_ERR, "Found no devices.\n");
-		//exit(EXIT_FAILURE);
-
-	for (i = 0; serials[i] != NULL; ++i) {
-        syslog(LOG_ERR, "Malloc for %s\n",serials[i]);
-		newSI = malloc(sizeof(struct SensorInfo));
-        if (newSI == NULL) {
-            syslog(LOG_ERR, "newSI is NULL! Exitting.");
-            exit;
-        } else {
-            syslog(LOG_ERR, "newSI is allocated!");
-        }
-		newSI->next = NULL;
-		newSI->serial = malloc(strlen(serials[i])+1);
-		strcpy(newSI->serial, serials[i]);
-		if (prevSI == NULL) {
-	        sensorInfo = newSI;
-			prevSI = newSI;
-		} else {
-			prevSI->next = newSI;
-		    prevSI = newSI;
-		}
-	}
-	free_dev_serial(serials);
-    syslog(LOG_INFO,"EnumAllTemp funcion ended\n");
-}
-
 void CloseTemp(littleWire *lw)
 {
 	usb_close(lw);
 	lw = NULL;
 }
 
-float ReadTemp(char *serial)
+float ReadADC(char *serial)
 {
 	littleWire *lw;
 	unsigned int adcValue;
@@ -170,8 +114,8 @@ float ReadTemp(char *serial)
                 adcValue = 300;
 	}
 	//return (float)((0.888 * adcValue) - 235.8);
-    return (float)((adcValue * 0.1818) - 25.0364);
-    //return adcValue;
+    //return (float)((adcValue * 0.1818) - 25.0364);
+    return adcValue;
 }
 
 size_t curl_discard_write( char *ptr, size_t size, size_t nmemb, void *userdata)
@@ -179,18 +123,21 @@ size_t curl_discard_write( char *ptr, size_t size, size_t nmemb, void *userdata)
 	return size*nmemb;
 }
 
-int http_send_temp(CURL *curl_handle, char *serial, float temp_c)
+int http_send_temp(CURL *curl_handle, char *serial, int temp_adc)
 {
 	CURLcode res;
 	char *curl_data;
+	float temp_c;
+	//liearn function to get the cemperature in celsius from adc value
+	temp_c = (float)((temp_adc * 0.1818) - 25.0364);
 
 	if (curl_handle) {
 		//prepare post data
-		asprintf(&curl_data, "sn=%s&key=temp&val=%g", serial, temp_c);
+		asprintf(&curl_data, "sn=%s&temp_adc=%u&temp_c=%g", serial, temp_adc, temp_c);
 		//set URL and POST data
 		curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, curl_data);
 		curl_easy_setopt(curl_handle, CURLOPT_URL,
-						 "http://linode.blava.net/meter/");
+						 "http://temperme.com/call/");
 		//set no progress meter
 		curl_easy_setopt(curl_handle, CURLOPT_NOPROGRESS, 1L);
 		curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, &curl_discard_write);
@@ -216,7 +163,7 @@ void *Sender(void *arg)
 		return;
 	}
 	while (1) {
-		float temp_c;
+		int temp_adc;
 		struct SensorInfo *pSI = sensorInfo;
 
         usb_init();
@@ -224,9 +171,9 @@ void *Sender(void *arg)
         serials = list_dev_serial(VENDOR_ID, PRODUCT_ID);
         for (i = 0; serials[i] != NULL; ++i) {
 		//while(pSI != NULL) {
-            syslog(LOG_INFO,"Reading temp from serial %s \n",serials[i]);
-			temp_c = ReadTemp(serials[i]);
-			http_send_temp(curl_handle, serials[i], temp_c);
+            syslog(LOG_INFO,"Reading ADC value from serial %s \n",serials[i]);
+			temp_adc = ReadADC(serials[i]);
+			http_send_temp(curl_handle, serials[i], temp_adc);
 			//pSI = (*pSI).next;
 		}
         //free(pSI);
@@ -240,12 +187,12 @@ void *Sender(void *arg)
 void *servlet(void *arg)
 {								/* servlet thread */
 	FILE *fp = (FILE *) arg;	/* get & convert the data */
-	float temp_c;
+	int temp_adc;
 	struct SensorInfo *pSI = sensorInfo;
 
 	while(pSI != NULL) {
-		temp_c = ReadTemp((*pSI).serial);
-		fprintf(fp, "%s:%g\n", (*pSI).serial, temp_c);	/* echo it back */
+		temp_adc = ReadADC((*pSI).serial);
+		fprintf(fp, "%s:%u\n", (*pSI).serial, temp_adc);	/* echo it back */
 		pSI = (*pSI).next;
 	}
 	fclose(fp);					/* close the client's channel */
