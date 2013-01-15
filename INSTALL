@@ -1,0 +1,3 @@
+to make all files, run `make` in the main program direcory
+
+binary files will be placed in the sbin and bin directory

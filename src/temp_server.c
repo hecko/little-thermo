@@ -1,8 +1,22 @@
 /*
-	Created: December 2011
-	by ihsan Kehribar <ihsan@kehribar.me>
-	Changed: July 2012
-	by Marcel Hecko <maco@blava.net>
+Client for interacting with TemperMe.com hardware
+Copyright (C) 2011  Ihsan Kehribar <ihsan@kehribar.me>
+Copyright (C) 2012  Marcel Hecko <maco@blava.net> 
+Copyright (C) 2012  Michal Belica 
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 #include <stdio.h>
@@ -22,6 +36,7 @@
 #include <netdb.h>
 #include <sys/un.h>
 #include "usbenum.h"
+#include <usb.h>
 
 #define PROG_NAME "temp_server"
 #define SEND_INTERVAL 5000
@@ -34,7 +49,7 @@
 unsigned char version;
 struct SensorInfo {
 	char *serial;
-	littleWire *lw;
+	//littleWire *lw;
 	struct SensorInfo *next;
 };
 struct SensorInfo *sensorInfo = NULL;
@@ -55,61 +70,104 @@ void signal_handler(int sig)
 
 void InitTemp(char *serial, littleWire **myLittleWire)
 {
+	int ret;
 #ifdef DUMMY_SENSOR
 	return;
 #endif
-	syslog(LOG_DEBUG, "init serial %s called\n", serial);
+	syslog(LOG_DEBUG, "InitTemp serial %s called\n", serial);
 	//myLittleWire = littleWire_connect();
-	usbOpenDevice(myLittleWire, VENDOR_ID, "*", PRODUCT_ID, "*", serial, NULL, NULL );
+	ret = usbOpenDevice(myLittleWire, VENDOR_ID, "*", PRODUCT_ID, "*", serial, NULL, NULL );
 
-	if (*myLittleWire == NULL) {
+	if (*myLittleWire == NULL || ret != 0) {
 		syslog(LOG_ERR,
 			   "Little Wire could not be found! Is it plugged in and are you running this as root?\n");
-		exit(EXIT_FAILURE);
+		//exit(EXIT_FAILURE);
 	}
 
 	version = readFirmwareVersion(*myLittleWire);
 	syslog(LOG_ERR, "Little Wire firmware version: %d.%d\n",
-		   ((version & 0xF0) >> 4), (version & 0x0F));
+	        ((version & 0xF0) >> 4), (version & 0x0F));
 
 	pinMode(*myLittleWire, PIN2, INPUT);
 }
 
-void InitAllTemp(char **serials)
+void SIDel() {
+    struct SensorInfo *si = NULL, *psi;
+
+    while (si = sensorInfo) {
+        if (si != NULL) {
+            si = si->next;
+            syslog(LOG_INFO,"Deleting sensor %s\n",si->serial);
+            psi = si;
+            free(psi);
+        }
+    }
+    sensorInfo = NULL;
+}
+
+void EnumAllTemp()
 {
+	char **serials;
 	struct SensorInfo *newSI = NULL;
 	struct SensorInfo *prevSI = sensorInfo;
 	int i;
 
-	for(i = 0; serials[i] != NULL; ++i) {
+    SIDel();
+
+	serials = list_dev_serial(VENDOR_ID, PRODUCT_ID);
+	for (i = 0; serials[i] != NULL; ++i) {
+        syslog(LOG_INFO,"Found %s \n",serials[i]);
+    }
+	syslog(LOG_INFO,"Found %d devices.", i);
+	if (i == 0)
+        syslog(LOG_ERR, "Found no devices.\n");
+		//exit(EXIT_FAILURE);
+
+	for (i = 0; serials[i] != NULL; ++i) {
+        syslog(LOG_ERR, "Malloc for %s\n",serials[i]);
 		newSI = malloc(sizeof(struct SensorInfo));
-		newSI->lw = NULL;
+        if (newSI == NULL) {
+            syslog(LOG_ERR, "newSI is NULL! Exitting.");
+            exit;
+        } else {
+            syslog(LOG_ERR, "newSI is allocated!");
+        }
 		newSI->next = NULL;
 		newSI->serial = malloc(strlen(serials[i])+1);
 		strcpy(newSI->serial, serials[i]);
-		InitTemp(newSI->serial, &(newSI->lw));
 		if (prevSI == NULL) {
-			sensorInfo = newSI;
+	        sensorInfo = newSI;
 			prevSI = newSI;
 		} else {
 			prevSI->next = newSI;
-			prevSI = newSI;
+		    prevSI = newSI;
 		}
 	}
+	free_dev_serial(serials);
+    syslog(LOG_INFO,"EnumAllTemp funcion ended\n");
 }
 
-float ReadTemp(littleWire *myLittleWire)
+void CloseTemp(littleWire *lw)
 {
+	usb_close(lw);
+	lw = NULL;
+}
+
+float ReadTemp(char *serial)
+{
+	littleWire *lw;
 	unsigned int adcValue;
 #ifdef DUMMY_SENSOR
 	return 3.1415926535897932384626433832;
 #endif
-	adcValue = analogRead(myLittleWire, ADC_TEMP_SENS);
+	InitTemp(serial, &lw);
+	adcValue = analogRead(lw, ADC_TEMP_SENS);
+	CloseTemp(lw);
 	if (adcValue <= 230 || adcValue >= 370) { /* which corresponds to -40 to 85 C */
 		syslog(LOG_ERR,
-				"Value returned from Little Wire (%u) is not within acceptable range, exiting.\n",
+				"Value returned from Little Wire (%u) is not within acceptable range. Setting the value to 300.\n",
 				adcValue);
-                adcValue = 1024;
+                adcValue = 300;
 	}
 	//return (float)((0.888 * adcValue) - 235.8);
     //return (float)((adcValue * 0.1818) - 25.0364);
@@ -149,7 +207,9 @@ int http_send_temp(CURL *curl_handle, char *serial, float temp_c)
 //sender part which regularly sends data to the cloud 
 void *Sender(void *arg)
 {
+    char **serials;
 	CURL *curl_handle;
+    int i;
 
 	if(!(curl_handle = curl_easy_init())) {
 		syslog(LOG_ERR, "curl_easy_init failed\n");
@@ -159,13 +219,21 @@ void *Sender(void *arg)
 		float temp_c;
 		struct SensorInfo *pSI = sensorInfo;
 
-		while(pSI != NULL) {
-			temp_c = ReadTemp(pSI->lw);
-			http_send_temp(curl_handle, pSI->serial, temp_c);
-			pSI = pSI->next;
+        usb_init();
+        //EnumAllTemp();
+        serials = list_dev_serial(VENDOR_ID, PRODUCT_ID);
+        for (i = 0; serials[i] != NULL; ++i) {
+		//while(pSI != NULL) {
+            syslog(LOG_INFO,"Reading temp from serial %s \n",serials[i]);
+			temp_c = ReadTemp(serials[i]);
+			http_send_temp(curl_handle, serials[i], temp_c);
+			//pSI = (*pSI).next;
 		}
+        //free(pSI);
+        
 		delay(SEND_INTERVAL);
 	}
+    free_dev_serial(serials);
 	curl_easy_cleanup(curl_handle);
 }
 
@@ -176,9 +244,9 @@ void *servlet(void *arg)
 	struct SensorInfo *pSI = sensorInfo;
 
 	while(pSI != NULL) {
-		temp_c = ReadTemp(pSI->lw);
-		fprintf(fp, "%s:%g\n", pSI->serial, temp_c);	/* echo it back */
-		pSI = pSI->next;
+		temp_c = ReadTemp((*pSI).serial);
+		fprintf(fp, "%s:%g\n", (*pSI).serial, temp_c);	/* echo it back */
+		pSI = (*pSI).next;
 	}
 	fclose(fp);					/* close the client's channel */
 	return 0;					/* terminate the thread */
@@ -203,14 +271,14 @@ void *Server(void *arg)
 		exit(1);
 	}
 
-	if ((sd = socket(ans->ai_family, ans->ai_socktype, ans->ai_protocol)) < 0) {
+	if ((sd = socket((*ans).ai_family, (*ans).ai_socktype, (*ans).ai_protocol)) < 0) {
 		syslog(LOG_ERR, "cannot create socket \n");
 		exit(1);
 	}
 	optval = 1;
 	setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
 
-	if (bind(sd, ans->ai_addr, ans->ai_addrlen) != 0) {
+	if (bind(sd, (*ans).ai_addr, (*ans).ai_addrlen) != 0) {
 		syslog(LOG_ERR, "problem with server bind");
 		exit(1);
 	}
@@ -241,7 +309,6 @@ void *Server(void *arg)
 
 int main(int argc, char **argv)
 {
-	char **serials;
 	int i;
 
 	openlog(PROG_NAME, LOG_NOWAIT | LOG_PID, LOG_USER);
@@ -255,18 +322,8 @@ int main(int argc, char **argv)
 	//}
 	//conf_serial = argv[1];
 
-	usb_init();
-	serials = list_dev_serial(VENDOR_ID, PRODUCT_ID);
-	for(i = 0; serials[i] != NULL; ++i)
-		;
-	if (i > 0) {
-		syslog(LOG_INFO,"Found %d devices.", i);
-	} else {
-		syslog(LOG_ERR,"Found %d devices, exiting.", i);
-		exit(EXIT_FAILURE);
-	}
-	InitAllTemp(serials);
-	free_dev_serial(serials);
+	//usb_init();
+	//EnumAllTemp();
 
 	syslog(LOG_NOTICE, "Starting temperature monitoring server");
 
@@ -298,7 +355,7 @@ int main(int argc, char **argv)
 		syslog(LOG_NOTICE, "...now a full-featured child :)");
 		pthread_t sender_child, server_child;
 		pthread_create(&sender_child, NULL, Sender, NULL);
-		pthread_create(&server_child, NULL, Server, NULL);
+		//pthread_create(&server_child, NULL, Server, NULL);
 		pthread_join(sender_child, NULL);
 		closelog();
 		pthread_exit(NULL);
