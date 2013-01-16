@@ -39,7 +39,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <usb.h>
 
 #define PROG_NAME "temp_server"
-#define SEND_INTERVAL 5000
+#define SEND_INTERVAL 3000
 #define LOCAL_SERVER_PORT "15000" /* port number or service name as string */
 
 //uncomment the following to disable querying a hardware sensor,
@@ -163,15 +163,15 @@ float ReadTemp(char *serial)
 	InitTemp(serial, &lw);
 	adcValue = analogRead(lw, ADC_TEMP_SENS);
 	CloseTemp(lw);
-	if (adcValue <= 230 || adcValue >= 370) { /* which corresponds to -40 to 85 C */
-		syslog(LOG_ERR,
-				"Value returned from Little Wire (%u) is not within acceptable range. Setting the value to 300.\n",
-				adcValue);
-                adcValue = 300;
-	}
+	//if (adcValue <= 230 || adcValue >= 370) { /* which corresponds to -40 to 85 C */
+	//	syslog(LOG_ERR,
+	//		"Value returned from Little Wire (%u) is not within acceptable range. Setting the value to 300.\n",
+	//		adcValue);
+	//	adcValue = 300;
+	//}
 	//return (float)((0.888 * adcValue) - 235.8);
-    //return (float)((adcValue * 0.1818) - 25.0364);
-    return adcValue;
+	return (float)((adcValue * 0.1818) - 25.0364);
+	//return adcValue;
 }
 
 size_t curl_discard_write( char *ptr, size_t size, size_t nmemb, void *userdata)
@@ -186,11 +186,10 @@ int http_send_temp(CURL *curl_handle, char *serial, float temp_c)
 
 	if (curl_handle) {
 		//prepare post data
-		asprintf(&curl_data, "sn=%s&key=temp&val=%g", serial, temp_c);
+		asprintf(&curl_data, "sn=%s&temp_c=%g", serial, temp_c);
 		//set URL and POST data
 		curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, curl_data);
-		curl_easy_setopt(curl_handle, CURLOPT_URL,
-						 "http://linode.blava.net/meter/");
+		curl_easy_setopt(curl_handle, CURLOPT_URL, "http://www.temperme.com/call/index.php");
 		//set no progress meter
 		curl_easy_setopt(curl_handle, CURLOPT_NOPROGRESS, 1L);
 		curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, &curl_discard_write);
@@ -199,7 +198,7 @@ int http_send_temp(CURL *curl_handle, char *serial, float temp_c)
 			syslog(LOG_NOTICE, "curl_easy_perform() failed: %s\n",
 				   curl_easy_strerror(res));
 		}
-		syslog(LOG_INFO, "%s\n", curl_data);
+		syslog(LOG_INFO, "temperme: %s\n", curl_data);
 		free(curl_data);
 	}
 }
@@ -207,9 +206,9 @@ int http_send_temp(CURL *curl_handle, char *serial, float temp_c)
 //sender part which regularly sends data to the cloud 
 void *Sender(void *arg)
 {
-    char **serials;
+	char **serials;
 	CURL *curl_handle;
-    int i;
+	int i;
 
 	if(!(curl_handle = curl_easy_init())) {
 		syslog(LOG_ERR, "curl_easy_init failed\n");
@@ -219,24 +218,25 @@ void *Sender(void *arg)
 		float temp_c;
 		struct SensorInfo *pSI = sensorInfo;
 
-        usb_init();
-        //EnumAllTemp();
-        serials = list_dev_serial(VENDOR_ID, PRODUCT_ID);
-        for (i = 0; serials[i] != NULL; ++i) {
-		//while(pSI != NULL) {
-            syslog(LOG_INFO,"Reading temp from serial %s \n",serials[i]);
+		usb_init();
+		//EnumAllTemp();
+		serials = list_dev_serial(VENDOR_ID, PRODUCT_ID);
+		for (i = 0; serials[i] != NULL; ++i) {
+			//while(pSI != NULL) {
+			syslog(LOG_INFO,"temperme: Reading temp from serial %s \n",serials[i]);
 			temp_c = ReadTemp(serials[i]);
 			http_send_temp(curl_handle, serials[i], temp_c);
 			//pSI = (*pSI).next;
 		}
-        //free(pSI);
-        
+		//free(pSI);
+
 		delay(SEND_INTERVAL);
 	}
-    free_dev_serial(serials);
+	free_dev_serial(serials);
 	curl_easy_cleanup(curl_handle);
 }
 
+//code witch waits for client connection to return the temperature value
 void *servlet(void *arg)
 {								/* servlet thread */
 	FILE *fp = (FILE *) arg;	/* get & convert the data */
