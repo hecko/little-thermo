@@ -26,7 +26,7 @@ ifeq ($(shell uname), Linux)
 	EXE_SUFFIX = 
 	OSFLAG = -D LINUX
     BIN_DIR = bin
-    SBIN_DIR = sbin
+    SBIN_DIR = bin
 else
 	USBFLAGS = -I C:\MinGW\include
 	USBLIBS = -L C:\MinGW\lib -lusb

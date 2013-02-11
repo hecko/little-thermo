@@ -1,8 +1,0 @@
-var searchData=
-[
-  ['pinmode',['pinMode',['../littleWire_8c.html#a3d9d42ba638ea905365245113afbafef',1,'pinMode(littleWire *lwHandle, unsigned char pin, unsigned char mode):&#160;littleWire.c'],['../littleWire_8h.html#a3d9d42ba638ea905365245113afbafef',1,'pinMode(littleWire *lwHandle, unsigned char pin, unsigned char mode):&#160;littleWire.c']]],
-  ['pwm_5finit',['pwm_init',['../littleWire_8c.html#a4a070a716f10a3e89221d9c4f39b55ff',1,'pwm_init(littleWire *lwHandle):&#160;littleWire.c'],['../littleWire_8h.html#a4a070a716f10a3e89221d9c4f39b55ff',1,'pwm_init(littleWire *lwHandle):&#160;littleWire.c']]],
-  ['pwm_5fstop',['pwm_stop',['../littleWire_8c.html#a83bff9c8bfca1ea5ef21ed6b9616bc42',1,'pwm_stop(littleWire *lwHandle):&#160;littleWire.c'],['../littleWire_8h.html#a83bff9c8bfca1ea5ef21ed6b9616bc42',1,'pwm_stop(littleWire *lwHandle):&#160;littleWire.c']]],
-  ['pwm_5fupdatecompare',['pwm_updateCompare',['../littleWire_8c.html#a28b543e97edce467978dd57fd8dc66a8',1,'pwm_updateCompare(littleWire *lwHandle, unsigned char channelA, unsigned char channelB):&#160;littleWire.c'],['../littleWire_8h.html#a28b543e97edce467978dd57fd8dc66a8',1,'pwm_updateCompare(littleWire *lwHandle, unsigned char channelA, unsigned char channelB):&#160;littleWire.c']]],
-  ['pwm_5fupdateprescaler',['pwm_updatePrescaler',['../littleWire_8c.html#ab7a85b4c3b9bab80018a0fda400346fd',1,'pwm_updatePrescaler(littleWire *lwHandle, unsigned int value):&#160;littleWire.c'],['../littleWire_8h.html#ab7a85b4c3b9bab80018a0fda400346fd',1,'pwm_updatePrescaler(littleWire *lwHandle, unsigned int value):&#160;littleWire.c']]]
-];
