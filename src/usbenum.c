@@ -1,5 +1,5 @@
 /*
-Client for interacting with TemperMe.com hardware
+Client for interacting with temperme.com hardware
 Copyright (C) 2011  Ihsan Kehribar <ihsan@kehribar.me>
 Copyright (C) 2012  Marcel Hecko <maco@blava.net> 
 Copyright (C) 2012  Michal Belica 

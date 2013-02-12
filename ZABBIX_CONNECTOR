@@ -2,4 +2,4 @@ in zabbix:
 create item key for your host - key: temperme[1] of type zabbix trapper
 
 add to crontab (for every minute or so): 
-/opt/zabbix/bin/zabbix_sender --zabbix-server localhost --host localhost --key temperme[1] --value `/home/marcel/code/little-thermo/temp_client` 
+/opt/zabbix/bin/zabbix_sender --zabbix-server localhost --host localhost --key temperme[1] --value `/home/marcel/code/little-thermo/temperme_client` 

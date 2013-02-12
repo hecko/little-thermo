@@ -1,5 +1,5 @@
 /*
-Client for interacting with TemperMe.com hardware
+Client for interacting with temperme.com hardware
 Copyright (C) 2011  Ihsan Kehribar <ihsan@kehribar.me>
 Copyright (C) 2012  Marcel Hecko <maco@blava.net> 
 Copyright (C) 2012  Michal Belica 
@@ -36,7 +36,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 int main()
 {
 
-	int sock, bytes_recieved, ret;
+	int sock, bytes_recieved, ret, i;
 	char send_data[1024], recv_data[1024], straddr[INET6_ADDRSTRLEN];
 	struct addrinfo req, *ans, *ai;
 	struct sockaddr_in server_addr;
@@ -46,13 +46,14 @@ int main()
 	req.ai_family = AF_UNSPEC;
 	req.ai_socktype = SOCK_STREAM;
 
-	if ((ret = getaddrinfo("localhost", "15000", &req, &ans)) != 0) {
+	if ((ret = getaddrinfo("127.0.0.1", "15000", &req, &ans)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(ret));
 		exit(EXIT_FAILURE);
 	}
 	ai = ans;
 	while (ai) { /* try all found addresses */
 #ifdef DEBUG
+		fprintf(stderr,"%d\n",i++);
 		if (ai->ai_family == AF_INET) {
 			inaddr = &(((struct sockaddr_in *)ai->ai_addr)->sin_addr);
 		} else if (ai->ai_family == AF_INET6) {

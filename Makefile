@@ -1,4 +1,4 @@
-#Makefile for utilities interacting with TemperMe.com hardware
+#Makefile for utilities interacting with temperme.com hardware
 #Copyright (C) 2011  Ihsan Kehribar <ihsan@kehribar.me>
 #Copyright (C) 2012  Marcel Hecko <maco@blava.net> 
 #Copyright (C) 2012  Michal Belica 
@@ -40,12 +40,12 @@ CFLAGS  = $(USBFLAGS) $(LIBS) -I$(INCLUDE) -O -g $(OSFLAG)
 
 LWLIBS = opendevice littleWire littleWire_util 
 SERVERCODE = usbenum
-EXAMPLES = temp_server temp_client
+EXAMPLES = tempermed temperme_client
 LDLIBS = -L/usr/lib/x86_64-linux-gnu -lcurl
 
 .PHONY:	clean library
 
-all: library temp_server temp_client
+all: library tempermed temperme_client
 
 library: $(LWLIBS)
 
@@ -57,11 +57,11 @@ $(addsuffix .o,$(SERVERCODE)): $(addprefix src/, $(addsuffix .c, $(SERVERCODE)))
 	@echo Building server object files: $@...
 	$(CC) $(CFLAGS) -c src/$(subst .o,.c,$@)
 
-temp_server: $(addsuffix .o, $(LWLIBS)) $(addsuffix .o, $(SERVERCODE))
+tempermed: $(addsuffix .o, $(LWLIBS)) $(addsuffix .o, $(SERVERCODE))
 	@echo Building server: $@...
 	$(CC) $(CFLAGS) -D_GNU_SOURCE=1 -pthread -Wno-unused-result -o $(SBIN_DIR)/$@$(EXE_SUFFIX) src/$@.c $^ $(LIBS) $(LDLIBS)
 
-temp_client:
+temperme_client:
 	@echo Building client: $@...
 	$(CC) $(CFLAGS) -D_GNU_SOURCE=1 -Wno-unused-result -o $(BIN_DIR)/$@$(EXE_SUFFIX) src/$@.c $^
 

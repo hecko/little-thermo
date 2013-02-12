@@ -1,5 +1,5 @@
 /*
-Client for interacting with TemperMe.com hardware
+Client for interacting with temperme.com hardware
 Copyright (C) 2011  Ihsan Kehribar <ihsan@kehribar.me>
 Copyright (C) 2012  Marcel Hecko <maco@blava.net> 
 Copyright (C) 2012  Michal Belica 
@@ -38,7 +38,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "usbenum.h"
 #include <usb.h>
 
-#define PROG_NAME "temp_server"
+#define PROG_NAME "tempermed"
 #define SEND_INTERVAL 3000
 #define LOCAL_SERVER_PORT "15000" /* port number or service name as string */
 
@@ -49,7 +49,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 unsigned char version;
 struct SensorInfo {
 	char *serial;
-	//littleWire *lw;
+	littleWire *lw;
 	struct SensorInfo *next;
 };
 struct SensorInfo *sensorInfo = NULL;
@@ -79,14 +79,12 @@ void InitTemp(char *serial, littleWire **myLittleWire)
 	ret = usbOpenDevice(myLittleWire, VENDOR_ID, "*", PRODUCT_ID, "*", serial, NULL, NULL );
 
 	if (*myLittleWire == NULL || ret != 0) {
-		syslog(LOG_ERR,
-			   "Little Wire could not be found! Is it plugged in and are you running this as root?\n");
+		syslog(LOG_ERR, "Little Wire could not be found! Is it plugged in and are you running this as root?\n");
 		//exit(EXIT_FAILURE);
 	}
 
 	version = readFirmwareVersion(*myLittleWire);
-	syslog(LOG_ERR, "Little Wire firmware version: %d.%d\n",
-	        ((version & 0xF0) >> 4), (version & 0x0F));
+	syslog(LOG_ERR, "Little Wire firmware version: %d.%d\n",((version & 0xF0) >> 4), (version & 0x0F));
 
 	pinMode(*myLittleWire, PIN2, INPUT);
 }
@@ -116,12 +114,13 @@ void EnumAllTemp()
 
 	serials = list_dev_serial(VENDOR_ID, PRODUCT_ID);
 	for (i = 0; serials[i] != NULL; ++i) {
-        syslog(LOG_INFO,"Found %s \n",serials[i]);
-    }
+		syslog(LOG_INFO,"Found %s \n",serials[i]);
+	}
 	syslog(LOG_INFO,"Found %d devices.", i);
-	if (i == 0)
-        syslog(LOG_ERR, "Found no devices.\n");
-		//exit(EXIT_FAILURE);
+	if (i == 0) {
+		syslog(LOG_ERR, "Found no devices.\n");
+		exit(EXIT_FAILURE);
+	}
 
 	for (i = 0; serials[i] != NULL; ++i) {
         syslog(LOG_ERR, "Malloc for %s\n",serials[i]);
@@ -163,15 +162,7 @@ float ReadTemp(char *serial)
 	InitTemp(serial, &lw);
 	adcValue = analogRead(lw, ADC_TEMP_SENS);
 	CloseTemp(lw);
-	//if (adcValue <= 230 || adcValue >= 370) { /* which corresponds to -40 to 85 C */
-	//	syslog(LOG_ERR,
-	//		"Value returned from Little Wire (%u) is not within acceptable range. Setting the value to 300.\n",
-	//		adcValue);
-	//	adcValue = 300;
-	//}
-	//return (float)((0.888 * adcValue) - 235.8);
 	return (float)((adcValue * 0.1818) - 25.0364);
-	//return adcValue;
 }
 
 size_t curl_discard_write( char *ptr, size_t size, size_t nmemb, void *userdata)
@@ -214,6 +205,7 @@ void *Sender(void *arg)
 		syslog(LOG_ERR, "curl_easy_init failed\n");
 		return;
 	}
+	syslog(LOG_INFO,"temperme: entering Sender loop\n");
 	while (1) {
 		float temp_c;
 		struct SensorInfo *pSI = sensorInfo;
@@ -222,13 +214,14 @@ void *Sender(void *arg)
 		//EnumAllTemp();
 		serials = list_dev_serial(VENDOR_ID, PRODUCT_ID);
 		for (i = 0; serials[i] != NULL; ++i) {
-			//while(pSI != NULL) {
-			syslog(LOG_INFO,"temperme: Reading temp from serial %s \n",serials[i]);
-			temp_c = ReadTemp(serials[i]);
-			http_send_temp(curl_handle, serials[i], temp_c);
-			//pSI = (*pSI).next;
+			while(pSI != NULL) {
+				syslog(LOG_INFO,"temperme: Reading temp from serial %s \n",serials[i]);
+				temp_c = ReadTemp(serials[i]);
+				http_send_temp(curl_handle, serials[i], temp_c);
+				pSI = (*pSI).next;
+			}
 		}
-		//free(pSI);
+		free(pSI);
 
 		delay(SEND_INTERVAL);
 	}
@@ -292,7 +285,8 @@ void *Server(void *arg)
 		pthread_t child;
 		FILE *fp;
 
-		while (1) {				/* process all incoming clients */
+		while (1) {
+			/* process all incoming clients */
 			/* accept connection */
 			if ((as = accept(sd, 0, 0)) == -1) {
 				perror("accept");
@@ -322,8 +316,8 @@ int main(int argc, char **argv)
 	//}
 	//conf_serial = argv[1];
 
-	//usb_init();
-	//EnumAllTemp();
+	usb_init();
+	EnumAllTemp();
 
 	syslog(LOG_NOTICE, "Starting temperature monitoring server");
 
@@ -355,7 +349,7 @@ int main(int argc, char **argv)
 		syslog(LOG_NOTICE, "...now a full-featured child :)");
 		pthread_t sender_child, server_child;
 		pthread_create(&sender_child, NULL, Sender, NULL);
-		//pthread_create(&server_child, NULL, Server, NULL);
+		pthread_create(&server_child, NULL, Server, NULL);
 		pthread_join(sender_child, NULL);
 		closelog();
 		pthread_exit(NULL);
