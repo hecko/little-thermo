@@ -1,10 +1,11 @@
 developed by
   Michal Belica
-on a base by
   Marcel Hecko
-who based the code on top of code from
+who based this code on top of code from
   Ihsan Kehribar
 
-This is a temperature reading application - reads temperature sensor information from ATTiny internal TEMP sensor and presents them to the user in varios forms. 
-It is a application which also automatically sends the data with information from seriaol part of the hardware sensor to TmeperMe.com cloud-based monitoring platform.
+This is a temperature reading application - reads temperature sensor information from ATTiny internal TEMP sensor or an additional digital 1-Wire temperature sensor and presents them to the user in varios forms.
 
+It is a application which also automatically sends the data with temperature information to tmeperme.com cloud-based temperature monitoring platform.
+
+So far this code is a proof-of-concept code.
