@@ -49,7 +49,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 unsigned char version;
 struct SensorInfo {
 	char *serial;
-	littleWire *lw;
+	//littleWire *lw;
 	struct SensorInfo *next;
 };
 struct SensorInfo *sensorInfo = NULL;
