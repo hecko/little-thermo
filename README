@@ -9,3 +9,9 @@ This is a temperature reading application - reads temperature sensor information
 It is a application which also automatically sends the data with temperature information to tmeperme.com cloud-based temperature monitoring platform.
 
 So far this code is a proof-of-concept code.
+
+This code contains two main pieces of software: 
+
+tempermed - temperature reading daemon, reads information from USB temperature sensor and automatically sends the information to temperme.com web site where the measurements are presented
+
+temperme_client - connects to the locally running tempermed and gets actual measurements and presents the data to the user
