@@ -39,7 +39,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <usb.h>
 
 #define PROG_NAME "tempermed"
-#define SEND_INTERVAL 3000
+#define SEND_INTERVAL 3000 /* this is in miliseconds */
 #define LOCAL_SERVER_PORT "15000" /* port number or service name as string */
 
 //uncomment the following to disable querying a hardware sensor,
@@ -47,11 +47,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //#define DUMMY_SENSOR 1
 
 unsigned char version;
+
 struct SensorInfo {
 	char *serial;
 	//littleWire *lw;
 	struct SensorInfo *next;
 };
+
 struct SensorInfo *sensorInfo = NULL;
 
 void signal_handler(int sig)
@@ -75,12 +77,11 @@ void InitTemp(char *serial, littleWire **myLittleWire)
 	return;
 #endif
 	syslog(LOG_DEBUG, "InitTemp serial %s called\n", serial);
-	//myLittleWire = littleWire_connect();
 	ret = usbOpenDevice(myLittleWire, VENDOR_ID, "*", PRODUCT_ID, "*", serial, NULL, NULL );
 
 	if (*myLittleWire == NULL || ret != 0) {
-		syslog(LOG_ERR, "Little Wire could not be found! Is it plugged in and are you running this as root?\n");
-		//exit(EXIT_FAILURE);
+		syslog(LOG_ERR, "this temperme sensor could not be found! Is it plugged in and are you running this as root?\n");
+		return;
 	}
 
 	version = readFirmwareVersion(*myLittleWire);
@@ -110,13 +111,13 @@ void EnumAllTemp()
 	struct SensorInfo *prevSI = sensorInfo;
 	int i;
 
-    SIDel();
+	SIDel();
 
 	serials = list_dev_serial(VENDOR_ID, PRODUCT_ID);
 	for (i = 0; serials[i] != NULL; ++i) {
-		syslog(LOG_INFO,"Found %s \n",serials[i]);
+		syslog(LOG_INFO,"Found this temperme serial: %s \n",serials[i]);
 	}
-	syslog(LOG_INFO,"Found %d devices.", i);
+	syslog(LOG_INFO,"Found total of %d devices.", i);
 	if (i == 0) {
 		syslog(LOG_ERR, "Found no devices.\n");
 		exit(EXIT_FAILURE);
@@ -154,7 +155,7 @@ void CloseTemp(littleWire *lw)
 
 float ReadTemp(char *serial)
 {
-	littleWire *lw;
+	littleWire *lw = NULL;
 	unsigned int adcValue;
 #ifdef DUMMY_SENSOR
 	return 3.1415926535897932384626433832;
@@ -210,20 +211,22 @@ void *Sender(void *arg)
 		float temp_c;
 		struct SensorInfo *pSI = sensorInfo;
 
-		usb_init();
-		//EnumAllTemp();
+		syslog(LOG_INFO,"Back in Sender while loop.");
 		serials = list_dev_serial(VENDOR_ID, PRODUCT_ID);
+		syslog(LOG_INFO,"Back in Sender about to read info from all devices.");
 		for (i = 0; serials[i] != NULL; ++i) {
+			syslog(LOG_INFO,"temperme: About to read temp from serial %s \n",serials[i]);
 			while(pSI != NULL) {
 				syslog(LOG_INFO,"temperme: Reading temp from serial %s \n",serials[i]);
 				temp_c = ReadTemp(serials[i]);
 				http_send_temp(curl_handle, serials[i], temp_c);
 				pSI = (*pSI).next;
 			}
+			syslog(LOG_INFO,"temperme: Finished reading temp from serial %s \n",serials[i]);
 		}
 		free(pSI);
-
 		delay(SEND_INTERVAL);
+		syslog(LOG_INFO,"temperme: Delay passed...repeating loop.");
 	}
 	free_dev_serial(serials);
 	curl_easy_cleanup(curl_handle);
@@ -358,6 +361,6 @@ int main(int argc, char **argv)
 		syslog(LOG_NOTICE, "Parent: Fork success.");
 	}
 
-	syslog(LOG_NOTICE, "Parent will now exit.");
+	syslog(LOG_NOTICE, "Parent will now exit keeping the children runnig.");
 }
 // vim: noet:sw=4:ts=4:sts=0

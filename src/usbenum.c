@@ -45,6 +45,8 @@ char** list_dev_serial(int vendorID, int productID)
 	char **serials = NULL;
 	int nserials = 0;
 
+	syslog(LOG_INFO,"About to enter list_dev_serial malloc.");
+
 	if ((serials = malloc(sizeof(void*))) == NULL) {
 		syslog(LOG_ERR, "memory allocation fail!\n");
 		exit(EXIT_FAILURE);
@@ -52,6 +54,7 @@ char** list_dev_serial(int vendorID, int productID)
 	serials[0] = NULL;
 	usb_find_busses();
 	usb_find_devices();
+	syslog(LOG_INFO,"Passed usb_find_busses and usb_find_devices");
 	for(bus = usb_get_busses(); bus; bus = bus->next) {
 		for(dev = bus->devices; dev; dev = dev->next) {  /* iterate over all devices on all busses */
 			if(dev->descriptor.idVendor == vendorID
