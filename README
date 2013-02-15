@@ -1,8 +1,7 @@
 developed by
   Michal Belica
-on a base by
   Marcel Hecko
-who based the code on top of code from
+code based on code from
   Ihsan Kehribar
 
 This is a temperature reading application - reads temperature sensor information from ATTiny internal TEMP sensor and presents them to the user in varios forms. 

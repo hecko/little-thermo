@@ -31,54 +31,38 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <unistd.h>
 #include <errno.h>
 
-#define DEBUG 0 
-
-int main()
+int main(int argc, char *argv[])
 {
 
 	int sock, bytes_recieved, ret, i;
-	char send_data[1024], recv_data[1024], straddr[INET6_ADDRSTRLEN];
+	char send_data[1024], recv_data[1024], straddr[16];
 	struct addrinfo req, *ans, *ai;
 	struct sockaddr_in server_addr;
 	void *inaddr;
+
+	if (argc <= 1) {
+		fprintf(stderr,"Please define the IP address of tempermed server.\n");
+		exit(1);
+	}
+
+	strcpy(straddr,argv[1]);
 
 	bzero(&req, sizeof(req));
 	req.ai_family = AF_UNSPEC;
 	req.ai_socktype = SOCK_STREAM;
 
-	if ((ret = getaddrinfo("127.0.0.1", "15000", &req, &ans)) != 0) {
+	if ((ret = getaddrinfo(straddr, "15000", &req, &ans)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(ret));
 		exit(EXIT_FAILURE);
 	}
-	ai = ans;
-	while (ai) { /* try all found addresses */
-#ifdef DEBUG
-		fprintf(stderr,"%d\n",i++);
-		if (ai->ai_family == AF_INET) {
-			inaddr = &(((struct sockaddr_in *)ai->ai_addr)->sin_addr);
-		} else if (ai->ai_family == AF_INET6) {
-			inaddr = &(((struct sockaddr_in6 *)ai->ai_addr)->sin6_addr);
-		} else {
-			inaddr = NULL;
-		}
-		//fuh, is there a simpler way to do this?
-		if (inet_ntop(ai->ai_family, inaddr, straddr, INET6_ADDRSTRLEN) == NULL) {
-			perror("inet_ntop");
-			exit(EXIT_FAILURE);
-		}
-		fprintf(stderr, "Trying %s\n", straddr );
-#endif
 
-		if ((sock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol)) == -1) {
-			perror("Socket");
-			ai = ans->ai_next;
-			continue;
-		}
-		if (connect(sock, ai->ai_addr, sizeof(struct sockaddr)) == -1) {
-			perror("Connect");
-			ai = ans->ai_next;
-			continue;
-		}
+	ai = ans;
+
+	if ((sock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol)) == -1) {
+		perror("Socket");
+	}
+	if (connect(sock, ai->ai_addr, sizeof(struct sockaddr)) == -1) {
+		perror("Connect");
 	}
 	if (!ai) {
 		fprintf(stderr, "Could not connect to host.\n");

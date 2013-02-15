@@ -39,7 +39,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <usb.h>
 
 #define PROG_NAME "tempermed"
-#define SEND_INTERVAL 3000 /* this is in miliseconds */
+#define SEND_INTERVAL 120000 /* this is in miliseconds */
 #define LOCAL_SERVER_PORT "15000" /* port number or service name as string */
 
 //uncomment the following to disable querying a hardware sensor,
@@ -287,7 +287,7 @@ void *Server(void *arg)
 		int as;
 		pthread_t child;
 		FILE *fp;
-
+		syslog(LOG_INFO,"temperme: Server - starting listener loop.");
 		while (1) {
 			/* process all incoming clients */
 			/* accept connection */
